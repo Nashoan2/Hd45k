@@ -729,6 +729,7 @@ class OpenSwiftIME : InputMethodService() {
             try {
                 voiceRecognizer?.stopListening()
             } catch (_: Exception) {}
+            currentInputConnection?.finishComposingText()
             isListeningVoice = false
             if (::keyboardView.isInitialized) {
                 keyboardView.isVoiceListening = false
@@ -757,21 +758,31 @@ class OpenSwiftIME : InputMethodService() {
                 voiceRecognizer = VoiceRecognizer(this)
             }
             voiceRecognizer?.apply {
-                onResult = { text ->
-                    if (text.isNotBlank()) {
+                onPartialResult = { partialText ->
+                    if (partialText.isNotBlank()) {
                         val ic = currentInputConnection
-                        ic?.commitText("$text ", 1)
+                        ic?.setComposingText(partialText, 1)
+                    }
+                }
+                onResult = { finalText ->
+                    if (finalText.isNotBlank()) {
+                        val ic = currentInputConnection
+                        ic?.commitText("$finalText ", 1)
                         updateSuggestions()
                     }
                 }
                 onStateChanged = { listening ->
                     isListeningVoice = listening
+                    if (!listening) {
+                        currentInputConnection?.finishComposingText()
+                    }
                     if (::keyboardView.isInitialized) {
                         keyboardView.isVoiceListening = listening
                         keyboardView.invalidate()
                     }
                 }
                 onError = { _ ->
+                    currentInputConnection?.finishComposingText()
                     isListeningVoice = false
                     if (::keyboardView.isInitialized) {
                         keyboardView.isVoiceListening = false
@@ -787,6 +798,7 @@ class OpenSwiftIME : InputMethodService() {
             }
             voiceRecognizer?.startListening(lang, continuous = true)
         } catch (_: Exception) {
+            currentInputConnection?.finishComposingText()
             isListeningVoice = false
             if (::keyboardView.isInitialized) {
                 keyboardView.isVoiceListening = false
@@ -799,6 +811,7 @@ class OpenSwiftIME : InputMethodService() {
         try {
             voiceRecognizer?.stopListening()
         } catch (_: Exception) {}
+        currentInputConnection?.finishComposingText()
         isListeningVoice = false
         if (::keyboardView.isInitialized) {
             keyboardView.isVoiceListening = false

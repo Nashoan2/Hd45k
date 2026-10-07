@@ -10,7 +10,8 @@ import android.speech.SpeechRecognizer
 import java.util.*
 
 /**
- * Continuous, completely silent voice input integration:
+ * Continuous, high-speed, completely silent voice input integration:
+ * - Real-time streaming with partial results for instantaneous display while speaking.
  * - Completely silences start and stop beeps/dings during speech recognizer startup, restarts, pauses, and shutdown.
  * - Suppresses all error messages, toasts, and chimes.
  * - Auto-stops after 15 seconds if no speech/words are detected.
@@ -18,6 +19,7 @@ import java.util.*
  */
 class VoiceRecognizer(private val ctx: Context) {
 
+    var onPartialResult: ((String) -> Unit)? = null
     var onResult: ((String) -> Unit)? = null
     var onStateChanged: ((Boolean) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
@@ -139,9 +141,11 @@ class VoiceRecognizer(private val ctx: Context) {
                 override fun onEndOfSpeech() {}
 
                 override fun onPartialResults(results: android.os.Bundle?) {
-                    val partialMatches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!partialMatches.isNullOrEmpty() && partialMatches.firstOrNull()?.isNotBlank() == true) {
+                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    val text = matches?.firstOrNull()?.trim()
+                    if (!text.isNullOrEmpty()) {
                         resetSilenceTimer()
+                        onPartialResult?.invoke(text)
                     }
                 }
 
@@ -159,7 +163,7 @@ class VoiceRecognizer(private val ctx: Context) {
                             if (isContinuous) {
                                 startListeningInternal()
                             }
-                        }, 80L)
+                        }, 40L)
                     } else {
                         isListening = false
                         onStateChanged?.invoke(false)
@@ -180,7 +184,7 @@ class VoiceRecognizer(private val ctx: Context) {
                             if (isContinuous) {
                                 startListeningInternal()
                             }
-                        }, 100L)
+                        }, 60L)
                         return
                     }
 
@@ -191,7 +195,7 @@ class VoiceRecognizer(private val ctx: Context) {
                             if (isContinuous) {
                                 startListeningInternal()
                             }
-                        }, 250L)
+                        }, 120L)
                         return
                     }
 
@@ -237,9 +241,15 @@ class VoiceRecognizer(private val ctx: Context) {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, currentLanguage)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 600L)
+                // Enable streaming partial results for instant real-time transcription
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                // Crisp, snappy silence thresholds:
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 600L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 400L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 150L)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                }
             }
             recognizer?.startListening(intent)
             isListening = true
