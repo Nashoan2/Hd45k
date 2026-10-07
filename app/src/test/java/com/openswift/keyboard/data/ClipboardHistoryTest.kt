@@ -18,11 +18,19 @@ class ClipboardHistoryTest {
     }
 
     @Test
-    fun emptyAndDuplicateValuesAreIgnored() {
+    fun emptyAndAlreadyFirstValuesAreUnchanged() {
         val current = listOf("newest", "older")
 
         assertSame(current, ClipboardHistory.withCapturedItem(current, ""))
-        assertSame(current, ClipboardHistory.withCapturedItem(current, "older"))
+        assertSame(current, ClipboardHistory.withCapturedItem(current, "newest"))
+    }
+
+    @Test
+    fun olderCopiedItemIsPromotedToTop() {
+        val current = listOf("newest", "older", "ancient")
+
+        val updated = ClipboardHistory.withCapturedItem(current, "older")
+        assertEquals(listOf("older", "newest", "ancient"), updated)
     }
 
     @Test

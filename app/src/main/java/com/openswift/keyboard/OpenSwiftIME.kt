@@ -168,6 +168,7 @@ class OpenSwiftIME : InputMethodService() {
         emojiInputView = withNavigationBarInset(emojiView, Themes.Amoled.background)
 
         clipboardView = ClipboardView(this)
+        clipboardView.clipboard = this.clipboard
         clipboardView.onItemSelected = { item ->
             currentInputConnection?.commitText(item, 1)
             clearInputBuffers()
@@ -230,11 +231,15 @@ class OpenSwiftIME : InputMethodService() {
             keyboardView.updateLayout(resolveLayout(settings.layout))
         }
         applyInputProfile()
+        clipboard.onSystemClipChanged()
         clipboard.captureSystem(
             ctx = this,
             enabled = true,
             privateField = privacyModeActive
         )
+        if (::clipboardView.isInitialized) {
+            clipboardView.refresh()
+        }
         shiftActive = settings.autoCapitalize // Start with shift active if auto-capitalize is on
         symbolsActive = false
         emojiMode = false
@@ -529,6 +534,7 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private fun showClipboardView() {
+        clipboard.onSystemClipChanged()
         clipboard.captureSystem(this, enabled = true, privateField = privacyModeActive)
         clipboardMode = true
         clipboardView.refresh()

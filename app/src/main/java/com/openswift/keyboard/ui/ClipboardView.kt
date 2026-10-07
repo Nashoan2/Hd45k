@@ -60,7 +60,7 @@ class ClipboardView @JvmOverloads constructor(
         }
 
     // Modal Action Dialog for long-press
-    private var activeDialogItem: String? = null
+    private var activeDialogCard: ClipCard? = null
     private val dialogRect = RectF()
     private val dialogPasteBounds = RectF()
     private val dialogPinBounds = RectF()
@@ -186,7 +186,7 @@ class ClipboardView @JvmOverloads constructor(
     private val textTruncateCache = HashMap<String, String>()
 
     // Swipe to delete state
-    private var swipedItem: String? = null
+    private var swipedCard: ClipCard? = null
     private var isSwiping = false
     private var swipeOffsetX = 0f
 
@@ -217,22 +217,38 @@ class ClipboardView @JvmOverloads constructor(
 
     // Long press detection for deleting
     private val longPressHandler = Handler(Looper.getMainLooper())
-    private var pressedItem: String? = null
+    private var pressedCard: ClipCard? = null
     private var longPressTriggered = false
     private var ignoreNextUpForDialog = false
     private val longPressRunnable = Runnable {
-        pressedItem?.let { item ->
+        pressedCard?.let { card ->
             longPressTriggered = true
             ignoreNextUpForDialog = true
             vibrateFeedback()
-            activeDialogItem = item
+            activeDialogCard = card
             invalidate()
         }
     }
 
     fun refresh() {
+        clipboard.invalidateCache()
+        try {
+            clipboard.captureSystem(context, enabled = true, privateField = false)
+        } catch (_: Exception) {}
         textTruncateCache.clear()
         invalidate()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        refresh()
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility == View.VISIBLE) {
+            refresh()
+        }
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -267,7 +283,7 @@ class ClipboardView @JvmOverloads constructor(
             canvas.drawText("الحافظة فارغة", w / 2f, emptyCenterY - (10f * density), headerTitlePaint)
             canvas.drawText("قم بنسخ أي نص وسيظهر هنا تلقائياً", w / 2f, emptyCenterY + (16f * density), emptySubPaint)
             canvas.restore()
-            if (activeDialogItem != null) drawActionDialog(canvas, w, h)
+            if (activeDialogCard != null) drawActionDialog(canvas, w, h)
             return
         }
 
@@ -314,7 +330,7 @@ class ClipboardView @JvmOverloads constructor(
         canvas.restore()
 
         // 4. If Action Dialog is open, draw overlay modal
-        if (activeDialogItem != null) {
+        if (activeDialogCard != null) {
             drawActionDialog(canvas, w, h)
         }
     }
@@ -415,7 +431,7 @@ class ClipboardView @JvmOverloads constructor(
     }
 
     private fun drawCard(canvas: Canvas, rect: RectF, text: String, isPinned: Boolean) {
-        val isBeingSwiped = isSwiping && swipedItem == text && swipeOffsetX < 0f
+        val isBeingSwiped = isSwiping && swipedCard?.text == text && swipedCard?.isPinned == isPinned && swipeOffsetX < 0f
 
         if (isBeingSwiped) {
             canvas.drawRoundRect(rect, cardRadius, cardRadius, swipeBgPaint)
@@ -468,7 +484,9 @@ class ClipboardView @JvmOverloads constructor(
     }
 
     private fun drawActionDialog(canvas: Canvas, w: Float, h: Float) {
-        val item = activeDialogItem ?: return
+        val card = activeDialogCard ?: return
+        val item = card.text
+        val isPinned = card.isPinned
 
         // Scrim
         canvas.drawRect(0f, 0f, w, h, scrimPaint)
@@ -505,8 +523,7 @@ class ClipboardView @JvmOverloads constructor(
         canvas.drawText("📋 لصق النص في المحادثة", dialogPasteBounds.centerX(), b1TextY, dialogTextPaint)
 
         // Button 2: Pin / Unpin
-        val isPinned = item in clipboard.pinnedItems()
-        val pinLabel = if (isPinned) "📌 إلغاء التثبيت (للسماح بالحذف)" else "📌 تثبيت في أعلى الحافظة (حماية من الحذف)"
+        val pinLabel = if (isPinned) "📌 إلغاء التثبيت" else "📌 تثبيت في أعلى الحافظة (حماية من الحذف)"
         val b2Top = b1Top + btnHeight + (8f * density)
         dialogPinBounds.set(dLeft + btnMarginH, b2Top, dLeft + btnMarginH + btnWidth, b2Top + btnHeight)
         canvas.drawRoundRect(dialogPinBounds, 8f * density, 8f * density, dialogButtonPaint)
@@ -571,10 +588,6 @@ class ClipboardView @JvmOverloads constructor(
     }
 
     fun deleteItem(item: String): Boolean {
-        if (item in clipboard.pinnedItems()) {
-            Toast.makeText(context, "النصوص المثبتة لا يتم مسحها إلا بعد إلغاء التثبيت 📌", Toast.LENGTH_SHORT).show()
-            return false
-        }
         clipboard.remove(item, context)
         textTruncateCache.clear()
         invalidate()
@@ -610,25 +623,26 @@ class ClipboardView @JvmOverloads constructor(
         velocityTracker?.addMovement(event)
 
         // If Action Dialog is visible, handle dialog clicks
-        if (activeDialogItem != null) {
+        if (activeDialogCard != null) {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 if (ignoreNextUpForDialog) {
                     ignoreNextUpForDialog = false
                     return true
                 }
-                val item = activeDialogItem!!
+                val card = activeDialogCard!!
+                val item = card.text
                 val x = event.x
                 val y = event.y
 
                 if (dialogPasteBounds.contains(x, y)) {
                     vibrateFeedback()
-                    activeDialogItem = null
+                    activeDialogCard = null
                     onItemSelected?.invoke(item)
                     invalidate()
                     return true
                 } else if (dialogPinBounds.contains(x, y)) {
                     vibrateFeedback()
-                    if (item in clipboard.pinnedItems()) {
+                    if (card.isPinned) {
                         clipboard.removePinned(item)
                         clipboard.add(item)
                         Toast.makeText(context, "تم إلغاء التثبيت (يمكنك حذفه الآن) ✓", Toast.LENGTH_SHORT).show()
@@ -638,22 +652,23 @@ class ClipboardView @JvmOverloads constructor(
                         Toast.makeText(context, "تم تثبيت النص في أعلى الحافظة (محمي من الحذف) 📌", Toast.LENGTH_SHORT).show()
                     }
                     textTruncateCache.clear()
-                    activeDialogItem = null
+                    activeDialogCard = null
                     invalidate()
                     return true
                 } else if (dialogDeleteBounds.contains(x, y)) {
                     vibrateFeedback()
-                    if (item in clipboard.pinnedItems()) {
+                    if (card.isPinned) {
                         Toast.makeText(context, "النصوص المثبتة لا يتم مسحها إلا بعد إلغاء التثبيت 📌", Toast.LENGTH_SHORT).show()
                     } else {
-                        deleteItem(item)
+                        clipboard.remove(item, context)
+                        textTruncateCache.clear()
                         Toast.makeText(context, "تم حذف النص من الحافظة", Toast.LENGTH_SHORT).show()
-                        activeDialogItem = null
+                        activeDialogCard = null
                         invalidate()
                     }
                     return true
                 } else if (dialogCancelBounds.contains(x, y) || !dialogRect.contains(x, y)) {
-                    activeDialogItem = null
+                    activeDialogCard = null
                     invalidate()
                     return true
                 }
@@ -673,15 +688,15 @@ class ClipboardView @JvmOverloads constructor(
                 isSwiping = false
                 swipeOffsetX = 0f
                 longPressTriggered = false
-                pressedItem = null
-                swipedItem = null
+                pressedCard = null
+                swipedCard = null
 
                 // If touched below the header, find if a card was hit
                 if (event.y >= headerHeight) {
                     val card = findCardAt(event.x, event.y)
                     if (card != null) {
-                        pressedItem = card.text
-                        swipedItem = card.text
+                        pressedCard = card
+                        swipedCard = card
                         longPressHandler.postDelayed(longPressRunnable, 350L)
                     }
                 }
@@ -694,22 +709,22 @@ class ClipboardView @JvmOverloads constructor(
 
                 if (!isDragging && !isSwiping) {
                     // Check if swiping right-to-left on an unpinned card
-                    if (dx < -touchSlop && abs(dx) > abs(totalDy) * 1.1f && swipedItem != null) {
-                        if (swipedItem !in clipboard.pinnedItems()) {
+                    if (dx < -touchSlop && abs(dx) > abs(totalDy) * 1.1f && swipedCard != null) {
+                        if (!swipedCard!!.isPinned) {
                             isSwiping = true
                             longPressHandler.removeCallbacks(longPressRunnable)
                         } else {
-                            swipedItem = null
+                            swipedCard = null
                         }
                     } else if (abs(totalDy) > touchSlop) {
                         isDragging = true
                         longPressHandler.removeCallbacks(longPressRunnable)
-                        swipedItem = null
-                        pressedItem = null
+                        swipedCard = null
+                        pressedCard = null
                     }
                 }
 
-                if (isSwiping && swipedItem != null) {
+                if (isSwiping && swipedCard != null) {
                     swipeOffsetX = (event.x - downX).coerceAtMost(0f)
                     invalidate()
                 } else if (isDragging && maxScroll > 0f) {
@@ -727,8 +742,8 @@ class ClipboardView @JvmOverloads constructor(
 
                 if (longPressTriggered) {
                     longPressTriggered = false
-                    pressedItem = null
-                    swipedItem = null
+                    pressedCard = null
+                    swipedCard = null
                     isSwiping = false
                     swipeOffsetX = 0f
                     velocityTracker?.recycle()
@@ -736,23 +751,24 @@ class ClipboardView @JvmOverloads constructor(
                     return true
                 }
 
-                if (isSwiping && swipedItem != null) {
+                if (isSwiping && swipedCard != null) {
                     val swipedLeftDist = downX - event.x
-                    val target = swipedItem!!
+                    val target = swipedCard!!
                     if (swipedLeftDist > 40f * density) {
-                        if (target in clipboard.pinnedItems()) {
+                        if (target.isPinned) {
                             vibrateFeedback()
                             Toast.makeText(context, "النصوص المثبتة لا يتم مسحها إلا بعد إلغاء التثبيت 📌", Toast.LENGTH_SHORT).show()
                         } else {
                             vibrateFeedback()
-                            deleteItem(target)
+                            clipboard.remove(target.text, context)
+                            textTruncateCache.clear()
                             Toast.makeText(context, "تم حذف النص", Toast.LENGTH_SHORT).show()
                         }
                     }
-                    swipedItem = null
+                    swipedCard = null
                     isSwiping = false
                     swipeOffsetX = 0f
-                    pressedItem = null
+                    pressedCard = null
                     velocityTracker?.recycle()
                     velocityTracker = null
                     invalidate()
@@ -813,7 +829,18 @@ class ClipboardView @JvmOverloads constructor(
                         val card = findCardAt(x, y)
                         if (card != null) {
                             vibrateFeedback()
-                            onItemSelected?.invoke(card.text)
+                            if (isDeleteMode) {
+                                if (card.isPinned) {
+                                    Toast.makeText(context, "النصوص المثبتة لا يتم مسحها إلا بعد إلغاء التثبيت 📌", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    clipboard.remove(card.text, context)
+                                    textTruncateCache.clear()
+                                    Toast.makeText(context, "تم حذف النص", Toast.LENGTH_SHORT).show()
+                                    invalidate()
+                                }
+                            } else {
+                                onItemSelected?.invoke(card.text)
+                            }
                             velocityTracker?.recycle()
                             velocityTracker = null
                             return true
@@ -823,9 +850,9 @@ class ClipboardView @JvmOverloads constructor(
 
                 isDragging = false
                 isSwiping = false
-                swipedItem = null
+                swipedCard = null
                 swipeOffsetX = 0f
-                pressedItem = null
+                pressedCard = null
                 velocityTracker?.recycle()
                 velocityTracker = null
             }
@@ -833,9 +860,9 @@ class ClipboardView @JvmOverloads constructor(
                 longPressHandler.removeCallbacks(longPressRunnable)
                 isDragging = false
                 isSwiping = false
-                swipedItem = null
+                swipedCard = null
                 swipeOffsetX = 0f
-                pressedItem = null
+                pressedCard = null
                 velocityTracker?.recycle()
                 velocityTracker = null
                 invalidate()

@@ -23,6 +23,14 @@ class ClipboardHistory(ctx: Context) {
     // but any fresh copy of the same text is immediately allowed and captured!
     private val deletedTimestamps = mutableMapOf<String, Long>()
 
+    fun invalidateCache() {
+        synchronized(this) {
+            cachedItems = null
+            cachedPinnedItems = null
+            cachedPinnedSet = null
+        }
+    }
+
     fun items(): List<String> {
         cachedItems?.let { return it }
         synchronized(this) {
@@ -76,7 +84,7 @@ class ClipboardHistory(ctx: Context) {
     }
 
     private fun clearSystemClipIfMatching(ctx: Context?, text: String) {
-        if (ctx == null) return
+        if (ctx == null || isPinned(text)) return
         try {
             val cb = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? SystemClipboard ?: return
             val clip = cb.primaryClip ?: return
@@ -168,21 +176,41 @@ class ClipboardHistory(ctx: Context) {
 
     fun captureSystem(ctx: Context, enabled: Boolean, privateField: Boolean): Boolean {
         if (!enabled || privateField) return false
-        val cb = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as SystemClipboard
-        val clip = cb.primaryClip ?: return false
+        val cb = try {
+            ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? SystemClipboard
+        } catch (_: Exception) {
+            null
+        } ?: return false
+
+        val clip = try {
+            cb.primaryClip
+        } catch (_: Exception) {
+            null
+        } ?: return false
+
         if (clip.itemCount == 0 || isSensitive(clip.description)) return false
-        val text = clip.getItemAt(0).coerceToText(ctx)?.toString() ?: return false
+        val text = try {
+            clip.getItemAt(0)?.coerceToText(ctx)?.toString()
+        } catch (_: Exception) {
+            null
+        } ?: return false
+
         if (text.isBlank()) return false
 
         // Check if this text was deleted earlier
         val deletedTime = deletedTimestamps[text]
         if (deletedTime != null) {
             val clipTime = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                clip.description.timestamp
+                try {
+                    clip.description.timestamp
+                } catch (_: Exception) {
+                    0L
+                }
             } else {
                 0L
             }
-            if (clipTime > deletedTime) {
+            val elapsed = System.currentTimeMillis() - deletedTime
+            if (clipTime > deletedTime || elapsed > 2500L) {
                 // User explicitly re-copied this text after deleting it; accept it!
                 deletedTimestamps.remove(text)
             } else {
@@ -213,8 +241,9 @@ class ClipboardHistory(ctx: Context) {
         ): Boolean = enabled && !privateField && !sensitiveClip && !text.isNullOrBlank()
 
         internal fun withCapturedItem(current: List<String>, text: String): List<String> {
-            if (text.isBlank() || text in current) return current
-            return (listOf(text) + current).take(MAX_ITEMS)
+            if (text.isBlank() || current.firstOrNull() == text) return current
+            val filtered = current.filter { it != text }
+            return (listOf(text) + filtered).take(MAX_ITEMS)
         }
     }
 }
