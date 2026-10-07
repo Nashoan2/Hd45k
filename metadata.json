@@ -1,0 +1,8 @@
+{
+  "name": "OpenSwift",
+  "description": "Smart, privacy-focused multilingual keyboard with swipe typing, custom themes, and clipboard manager.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
