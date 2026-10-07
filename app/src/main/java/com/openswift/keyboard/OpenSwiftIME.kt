@@ -759,16 +759,21 @@ class OpenSwiftIME : InputMethodService() {
             }
             voiceRecognizer?.apply {
                 onPartialResult = { partialText ->
+                    val ic = currentInputConnection
                     if (partialText.isNotBlank()) {
-                        val ic = currentInputConnection
                         ic?.setComposingText(partialText, 1)
+                    } else {
+                        ic?.setComposingText("", 1)
                     }
                 }
                 onResult = { finalText ->
+                    val ic = currentInputConnection
                     if (finalText.isNotBlank()) {
-                        val ic = currentInputConnection
                         ic?.commitText("$finalText ", 1)
                         updateSuggestions()
+                    } else {
+                        ic?.setComposingText("", 1)
+                        ic?.finishComposingText()
                     }
                 }
                 onStateChanged = { listening ->

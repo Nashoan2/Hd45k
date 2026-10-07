@@ -12,10 +12,10 @@ import java.util.*
 /**
  * Continuous, high-speed, completely silent voice input integration:
  * - Real-time streaming with partial results for instantaneous display while speaking.
+ * - Auto-stops automatically after 5 seconds if no speech is detected.
+ * - Voice command to stop automatically: saying "قف عندك" (or "توقف") stops listening immediately without typing the command.
  * - Completely silences start and stop beeps/dings during speech recognizer startup, restarts, pauses, and shutdown.
  * - Suppresses all error messages, toasts, and chimes.
- * - Auto-stops after 15 seconds if no speech/words are detected.
- * - Commits clean text without duplicate words.
  */
 class VoiceRecognizer(private val ctx: Context) {
 
@@ -37,7 +37,7 @@ class VoiceRecognizer(private val ctx: Context) {
     private var unmuteRunnable: Runnable? = null
 
     private val silenceTimeoutRunnable = Runnable {
-        // Automatically stop after 15 seconds if no speech is detected
+        // Automatically stop after 5 seconds if no speech is detected
         if (isListening || isContinuous) {
             stopListening()
         }
@@ -127,14 +127,12 @@ class VoiceRecognizer(private val ctx: Context) {
                 override fun onReadyForSpeech(params: android.os.Bundle?) {}
 
                 override fun onBeginningOfSpeech() {
-                    // Reset 15s silence timer when user speaks
+                    // Reset 5s silence timer when speech begins
                     resetSilenceTimer()
                 }
 
                 override fun onRmsChanged(rmsdB: Float) {
-                    if (rmsdB > 2.0f) {
-                        resetSilenceTimer()
-                    }
+                    // Do not reset timer on ambient microphone noise fluctuations
                 }
 
                 override fun onBufferReceived(buffer: ByteArray?) {}
@@ -145,6 +143,17 @@ class VoiceRecognizer(private val ctx: Context) {
                     val text = matches?.firstOrNull()?.trim()
                     if (!text.isNullOrEmpty()) {
                         resetSilenceTimer()
+                        if (containsStopCommand(text)) {
+                            // User commanded "قف عندك" to stop!
+                            val clean = stripStopCommand(text)
+                            if (clean.isNotBlank()) {
+                                onPartialResult?.invoke(clean)
+                            } else {
+                                onPartialResult?.invoke("")
+                            }
+                            stopListening()
+                            return
+                        }
                         onPartialResult?.invoke(text)
                     }
                 }
@@ -154,10 +163,21 @@ class VoiceRecognizer(private val ctx: Context) {
                     val text = matches?.firstOrNull()?.trim()
                     if (!text.isNullOrEmpty()) {
                         resetSilenceTimer()
+                        if (containsStopCommand(text)) {
+                            // User commanded "قف عندك" to stop!
+                            val clean = stripStopCommand(text)
+                            if (clean.isNotBlank()) {
+                                onResult?.invoke(clean)
+                            } else {
+                                onResult?.invoke("")
+                            }
+                            stopListening()
+                            return
+                        }
                         onResult?.invoke(text)
                     }
 
-                    // Keep listening continuously across pauses until explicitly stopped or 15s silence
+                    // Keep listening continuously across pauses until explicitly stopped or 5s silence
                     if (isContinuous) {
                         mainHandler.postDelayed({
                             if (isContinuous) {
@@ -179,7 +199,7 @@ class VoiceRecognizer(private val ctx: Context) {
                             error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT)
 
                     if (isContinuous && isSilenceOrPause) {
-                        // User paused speaking; resume listening seamlessly unless 15s timer stops it
+                        // User paused speaking; resume listening seamlessly unless 5s timer stops it
                         mainHandler.postDelayed({
                             if (isContinuous) {
                                 startListeningInternal()
@@ -297,6 +317,44 @@ class VoiceRecognizer(private val ctx: Context) {
     }
 
     companion object {
-        private const val SILENCE_TIMEOUT_MS = 15_000L
+        const val SILENCE_TIMEOUT_MS = 5_000L
+
+        private val STOP_PHRASES = listOf(
+            "قف عندك",
+            "قف هنا",
+            "توقف عندك",
+            "توقف"
+        )
+
+        fun normalizeArabic(text: String): String {
+            return text
+                .replace(Regex("[\\u064B-\\u065F\\u0670]"), "") // Remove tashkeel/diacritics
+                .replace('أ', 'ا')
+                .replace('إ', 'ا')
+                .replace('آ', 'ا')
+                .replace('ة', 'ه')
+                .replace(Regex("[.,?!،؟!]"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+        }
+
+        fun containsStopCommand(text: String): Boolean {
+            val norm = normalizeArabic(text).lowercase()
+            return STOP_PHRASES.any { phrase ->
+                norm == phrase ||
+                norm.endsWith(" $phrase") ||
+                norm.startsWith("$phrase ") ||
+                norm.contains(" $phrase ")
+            }
+        }
+
+        fun stripStopCommand(text: String): String {
+            var result = text
+            for (phrase in STOP_PHRASES) {
+                val pattern = Regex("(?i)[.,?!،؟]?\\s*$phrase\\s*[.,?!،؟]?", RegexOption.IGNORE_CASE)
+                result = result.replace(pattern, " ")
+            }
+            return result.replace(Regex("\\s+"), " ").trim()
+        }
     }
 }
