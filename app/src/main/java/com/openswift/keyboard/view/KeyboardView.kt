@@ -27,10 +27,51 @@ class KeyboardView(
     private var wordList: WordList,
     private var userDict: UserDictionary,
     private var keyLayout: KeyLayout,
-    private val theme: KbTheme = Themes.byId(settings.theme),
+    theme: KbTheme = Themes.byId(settings.theme),
     attrs: AttributeSet? = null,
     defStyle: Int = 0
 ) : View(ctx, attrs, defStyle) {
+
+    var theme: KbTheme = theme
+        set(value) {
+            field = value
+            applyThemePaints()
+            invalidate()
+        }
+
+    fun updateTheme(newTheme: KbTheme) {
+        this.theme = newTheme
+    }
+
+    private fun applyThemePaints() {
+        keyOutline.color = theme.keyAccent
+        textPaint.color = theme.keyText
+        suggestionPaint.color = theme.suggestionText
+        suggestionBgPaint.color = theme.suggestionBg
+        pillPaint.color = theme.keyBackground
+        pillBorderPaint.color = theme.keyAccent
+        pillBorderPaint.alpha = 90
+        previewPaint.color = theme.suggestionText
+        previewPaint.alpha = 180
+        trailPaint.color = theme.gestureTrail
+        ripplePaint.color = theme.keyAccent
+        keyModifierBgPaint.color = theme.keyModifierBackground
+        keyBgPaint.color = theme.keyBackground
+        shiftHighlightPaint.color = theme.keyAccent
+        clipboardIcon?.setTint(theme.keyText)
+        shiftIcon?.setTint(theme.keyText)
+        deleteIcon?.setTint(theme.keyText)
+        enterIcon?.setTint(theme.keyText)
+        emojiIcon?.setTint(theme.keyText)
+        languageIcon?.setTint(theme.keyText)
+        settingsIcon?.setTint(theme.keyText)
+        micIcon?.setTint(theme.keyText)
+        audioWaveIcon?.setTint(theme.keyText)
+        textCursorIcon?.setTint(theme.keyText)
+        hideIcon?.setTint(theme.keyText)
+        hubMonogramIcon?.setTint(theme.keyText)
+        numpadEnterIcon?.setTint(theme.keyText)
+    }
 
     companion object {
         private val HIDDEN_HINT_TEXTS = setOf("é", "ý", "ú", "í", "ł", "á", "ß", "đ", "ž", "ç", "ñ")

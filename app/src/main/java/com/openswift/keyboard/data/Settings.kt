@@ -151,7 +151,7 @@ class Settings internal constructor(private val store: SettingsStore) {
         set(value) = store.putBoolean("reduced_motion", value)
 
     companion object {
-        private fun encryptedPreferences(ctx: Context): SharedPreferences =
+        internal fun encryptedPreferences(ctx: Context): SharedPreferences =
             EncryptedSharedPreferences.create(
                 ctx,
                 "openswift_prefs",

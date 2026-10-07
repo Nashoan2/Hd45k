@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -405,7 +406,8 @@ fun MainUI(
     val availableThemes = remember(themeEditor) { themeEditor.listThemes() }
     val customLayouts = remember(context) { CustomLayoutStore(context).list() }
     
-    val theme = themeEditor.resolve(settings.theme)
+    var currentThemeId by remember { mutableStateOf(settings.theme) }
+    val theme = themeEditor.resolve(currentThemeId)
     val bgColor = Color(theme.background)
     val keyBgColor = Color(theme.keyBackground)
     val textColor = Color(theme.keyText)
@@ -449,6 +451,11 @@ fun MainUI(
                         initialPerAppPackage,
                         availableThemes,
                         customLayouts.map { it.id to it.name },
+                        currentThemeId = currentThemeId,
+                        onThemeChange = { newId ->
+                            settings.theme = newId
+                            currentThemeId = newId
+                        },
                     )
                     2 -> PrivacyUI(
                         ClipboardHistory(context),
@@ -526,8 +533,9 @@ fun EnhancedSettingsUI(
     initialPerAppPackage: String = "",
     availableThemes: List<KbTheme>,
     customLayoutOptions: List<Pair<String, String>>,
+    currentThemeId: String = settings.theme,
+    onThemeChange: (String) -> Unit = { settings.theme = it },
 ) {
-    var selectedThemeId by remember { mutableStateOf(settings.theme) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -550,11 +558,8 @@ fun EnhancedSettingsUI(
             accentColor = accentColor
         ) {
             ColorCustomizer(
-                currentThemeId = selectedThemeId,
-                onThemeChange = {
-                    settings.theme = it
-                    selectedThemeId = it
-                },
+                currentThemeId = currentThemeId,
+                onThemeChange = onThemeChange,
                 themes = availableThemes,
                 bgColor = bgColor,
                 textColor = textColor,
@@ -985,33 +990,64 @@ fun SettingsList(
 ) {
     var selectedLanguage by remember { mutableStateOf(settings.language) }
     var selectedLayout by remember { mutableStateOf(settings.layout) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     items.forEach { (label, options) ->
         if (options.isNotEmpty()) {
-            Text(label, color = textColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(
+                label,
+                color = textColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+            )
             options.forEach { (id, name) ->
+                val isSelected = when (label) {
+                    "Language", "اللغة" -> selectedLanguage == id
+                    "Layout", "التخطيط" -> selectedLayout == id
+                    else -> false
+                }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            when (label) {
+                                "Language", "اللغة" -> {
+                                    settings.language = id
+                                    selectedLanguage = settings.language
+                                    selectedLayout = settings.layout
+                                    Toast.makeText(context, "تم تغيير اللغة إلى: $name ✓", Toast.LENGTH_SHORT).show()
+                                }
+                                "Layout", "التخطيط" -> {
+                                    settings.layout = id
+                                    selectedLayout = id
+                                    Toast.makeText(context, "تم تغيير التخطيط إلى: $name ✓", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(name, color = textColor)
+                    Text(
+                        name,
+                        color = if (isSelected) accentColor else textColor,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
                     RadioButton(
-                        selected = when (label) {
-                            "Language", "اللغة" -> selectedLanguage == id
-                            "Layout", "التخطيط" -> selectedLayout == id
-                            else -> false
-                        },
+                        selected = isSelected,
                         onClick = {
                             when (label) {
                                 "Language", "اللغة" -> {
                                     settings.language = id
                                     selectedLanguage = settings.language
                                     selectedLayout = settings.layout
+                                    Toast.makeText(context, "تم تغيير اللغة إلى: $name ✓", Toast.LENGTH_SHORT).show()
                                 }
                                 "Layout", "التخطيط" -> {
                                     settings.layout = id
                                     selectedLayout = id
+                                    Toast.makeText(context, "تم تغيير التخطيط إلى: $name ✓", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         },
@@ -1030,9 +1066,15 @@ fun ToggleOption(
     textColor: Color,
     onToggle: (Boolean) -> Unit,
 ) {
+    var isChecked by remember(value) { mutableStateOf(value) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable {
+                val next = !isChecked
+                isChecked = next
+                onToggle(next)
+            }
             .padding(vertical = Spacing.sm),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -1044,8 +1086,11 @@ fun ToggleOption(
             modifier = Modifier.weight(1f)
         )
         Switch(
-            checked = value,
-            onCheckedChange = onToggle,
+            checked = isChecked,
+            onCheckedChange = { next ->
+                isChecked = next
+                onToggle(next)
+            },
             modifier = Modifier.scale(0.95f)
         )
     }

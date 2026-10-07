@@ -96,6 +96,7 @@ class OpenSwiftIME : InputMethodService() {
         snippets = SnippetManager(this)
         perAppSettings = PerAppSettings(this)
         vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+        Settings.encryptedPreferences(this).registerOnSharedPreferenceChangeListener(prefChangeListener)
         val cb = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
         cb?.addPrimaryClipChangedListener {
             clipboard.onSystemClipChanged()
@@ -223,6 +224,11 @@ class OpenSwiftIME : InputMethodService() {
         previousWord = ""
         snippets.reload()
         refreshLanguageState()
+        val currentTheme = themeEditor.resolve(settings.theme)
+        if (::keyboardView.isInitialized) {
+            keyboardView.updateTheme(currentTheme)
+            keyboardView.updateLayout(resolveLayout(settings.layout))
+        }
         applyInputProfile()
         clipboard.captureSystem(
             ctx = this,
@@ -834,7 +840,24 @@ class OpenSwiftIME : InputMethodService() {
         }
     }
 
+    private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "theme" || key == "layout" || key == "key_height_dp") {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (::keyboardView.isInitialized) {
+                    val resolvedTheme = themeEditor.resolve(settings.theme)
+                    keyboardView.updateTheme(resolvedTheme)
+                    keyboardView.updateLayout(resolveLayout(settings.layout))
+                    applyInputProfile()
+                    keyboardView.invalidate()
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
+        try {
+            Settings.encryptedPreferences(this).unregisterOnSharedPreferenceChangeListener(prefChangeListener)
+        } catch (_: Exception) {}
         voiceRecognizer?.destroy()
         voiceRecognizer = null
         super.onDestroy()
