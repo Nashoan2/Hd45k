@@ -53,16 +53,16 @@ class OpenSwiftIME : InputMethodService() {
     private lateinit var customLayouts: CustomLayoutStore
     private lateinit var themeEditor: ThemeEditor
     private lateinit var keyboardView: KeyboardView
-    private lateinit var emojiView: EmojiView
-    private lateinit var clipboardView: ClipboardView
-    private lateinit var textEditingView: TextEditingView
-    private lateinit var toolsHubView: ToolsHubView
+    private var emojiView: EmojiView? = null
+    private var clipboardView: ClipboardView? = null
+    private var textEditingView: TextEditingView? = null
+    private var toolsHubView: ToolsHubView? = null
     private lateinit var keyboardInputView: View
-    private lateinit var emojiInputView: View
-    private lateinit var clipboardInputView: View
-    private lateinit var textEditingInputView: View
-    private lateinit var toolsHubInputView: View
-    private lateinit var numberRowView: com.openswift.keyboard.view.NumberRowView
+    private var emojiInputView: View? = null
+    private var clipboardInputView: View? = null
+    private var textEditingInputView: View? = null
+    private var toolsHubInputView: View? = null
+    private var numberRowView: com.openswift.keyboard.view.NumberRowView? = null
     private lateinit var vibrator: Vibrator
 
     private var currentLayout = Layouts.Arabic
@@ -101,9 +101,15 @@ class OpenSwiftIME : InputMethodService() {
         cb?.addPrimaryClipChangedListener {
             clipboard.onSystemClipChanged()
             clipboard.captureSystem(this, enabled = true, privateField = privacyModeActive)
-            if (::clipboardView.isInitialized) {
-                clipboardView.refresh()
-            }
+            clipboardView?.refresh()
+        }
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try {
+                if (voiceRecognizer == null) {
+                    voiceRecognizer = VoiceRecognizer(this)
+                }
+                voiceRecognizer?.prewarm()
+            } catch (_: Exception) {}
         }
     }
 
@@ -153,64 +159,90 @@ class OpenSwiftIME : InputMethodService() {
             requestHideSelf(0)
         }
         keyboardInputView = withNavigationBarInset(keyboardView, activeTheme.background)
-        
-        emojiView = EmojiView(this)
-        emojiView.onEmojiSelected = { emoji ->
-            currentInputConnection?.commitText(emoji, 1)
-            clearInputBuffers()
-            emojiMode = false
-            showKeyboardView()
-        }
-        emojiView.onClose = {
-            emojiMode = false
-            showKeyboardView()
-        }
-        emojiInputView = withNavigationBarInset(emojiView, Themes.Amoled.background)
-
-        clipboardView = ClipboardView(this)
-        clipboardView.clipboard = this.clipboard
-        clipboardView.onItemSelected = { item ->
-            currentInputConnection?.commitText(item, 1)
-            clearInputBuffers()
-            clipboardMode = false
-            showKeyboardView()
-        }
-        clipboardView.onClose = {
-            clipboardMode = false
-            showKeyboardView()
-        }
-        clipboardView.onReturnToKeyboard = {
-            clipboardMode = false
-            showKeyboardView()
-        }
-        clipboardInputView = withNavigationBarInset(clipboardView, 0xFF000000.toInt())
-
-        textEditingView = TextEditingView(this)
-        textEditingView.onOpenHub = { showToolsHubView() }
-        textEditingView.onOpenEmoji = { showEmojiView() }
-        textEditingView.onOpenClipboard = { showClipboardView() }
-        textEditingView.onClose = { showKeyboardView() }
-        textEditingView.onAction = { action -> handleTextEditingAction(action) }
-        textEditingInputView = withNavigationBarInset(textEditingView, 0xFF14171E.toInt())
-
-        toolsHubView = ToolsHubView(this)
-        toolsHubView.onOpenEmoji = { showEmojiView() }
-        toolsHubView.onOpenTextEditing = { showTextEditingView() }
-        toolsHubView.onOpenClipboard = { showClipboardView() }
-        toolsHubView.onOpenVoice = {
-            showKeyboardView()
-            toggleVoiceTyping()
-        }
-        toolsHubView.onClose = { showKeyboardView() }
-        toolsHubView.onToolSelected = { tool -> handleToolSelected(tool) }
-        toolsHubInputView = withNavigationBarInset(toolsHubView, 0xFF14171E.toInt())
-
-        numberRowView = com.openswift.keyboard.view.NumberRowView(this)
-        numberRowView.onKeyListener = { code, label ->
-            onKeyPressed(code, label)
-        }
-        
         return keyboardInputView
+    }
+
+    private fun getOrCreateEmojiInputView(): View {
+        var inputView = emojiInputView
+        if (inputView == null) {
+            val view = EmojiView(this)
+            view.onEmojiSelected = { emoji ->
+                currentInputConnection?.commitText(emoji, 1)
+                clearInputBuffers()
+                emojiMode = false
+                showKeyboardView()
+            }
+            view.onClose = {
+                emojiMode = false
+                showKeyboardView()
+            }
+            emojiView = view
+            inputView = withNavigationBarInset(view, Themes.Amoled.background)
+            emojiInputView = inputView
+        }
+        return inputView
+    }
+
+    private fun getOrCreateClipboardInputView(): View {
+        var inputView = clipboardInputView
+        if (inputView == null) {
+            val view = ClipboardView(this)
+            view.clipboard = this.clipboard
+            view.onItemSelected = { item ->
+                currentInputConnection?.commitText(item, 1)
+                clearInputBuffers()
+                clipboardMode = false
+                showKeyboardView()
+            }
+            view.onClose = {
+                clipboardMode = false
+                showKeyboardView()
+            }
+            view.onReturnToKeyboard = {
+                clipboardMode = false
+                showKeyboardView()
+            }
+            clipboardView = view
+            inputView = withNavigationBarInset(view, 0xFF000000.toInt())
+            clipboardInputView = inputView
+        }
+        return inputView
+    }
+
+    private fun getOrCreateTextEditingInputView(): View {
+        var inputView = textEditingInputView
+        if (inputView == null) {
+            val view = TextEditingView(this)
+            view.onOpenHub = { showToolsHubView() }
+            view.onOpenEmoji = { showEmojiView() }
+            view.onOpenClipboard = { showClipboardView() }
+            view.onClose = { showKeyboardView() }
+            view.onAction = { action -> handleTextEditingAction(action) }
+            textEditingView = view
+            inputView = withNavigationBarInset(view, 0xFF14171E.toInt())
+            textEditingInputView = inputView
+        }
+        return inputView
+    }
+
+    private fun getOrCreateToolsHubInputView(): View {
+        var inputView = toolsHubInputView
+        if (inputView == null) {
+            val view = ToolsHubView(this)
+            view.onOpenEmoji = { showEmojiView() }
+            view.onOpenTextEditing = { showTextEditingView() }
+            view.onOpenClipboard = { showClipboardView() }
+            view.onOpenVoice = {
+                showKeyboardView()
+                toggleVoiceTyping()
+            }
+            view.onClose = { showKeyboardView() }
+            view.onToolSelected = { tool -> handleToolSelected(tool) }
+            toolsHubView = view
+            inputView = withNavigationBarInset(view, 0xFF14171E.toInt())
+            toolsHubInputView = inputView
+        }
+        return inputView
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -237,14 +269,19 @@ class OpenSwiftIME : InputMethodService() {
             enabled = true,
             privateField = privacyModeActive
         )
-        if (::clipboardView.isInitialized) {
-            clipboardView.refresh()
-        }
+        clipboardView?.refresh()
         shiftActive = settings.autoCapitalize // Start with shift active if auto-capitalize is on
         symbolsActive = false
         emojiMode = false
         clipboardMode = false
         numberRowShown = false
+        if (::keyboardView.isInitialized) {
+            keyboardView.isResizeMode = false
+            keyboardView.setShift(shiftActive)
+        }
+        if (::keyboardInputView.isInitialized) {
+            showKeyboardView()
+        }
         if (isListeningVoice) {
             try {
                 voiceRecognizer?.stopListening()
@@ -255,6 +292,19 @@ class OpenSwiftIME : InputMethodService() {
             }
         }
         updateSuggestions()
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
+        emojiMode = false
+        clipboardMode = false
+        symbolsActive = false
+        if (::keyboardView.isInitialized) {
+            keyboardView.isResizeMode = false
+        }
+        if (::keyboardInputView.isInitialized) {
+            showKeyboardView()
+        }
     }
 
     private fun onKeyPressed(code: Int, label: String) {
@@ -522,23 +572,24 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private fun showEmojiView() {
-        setInputView(emojiInputView)
+        setInputView(getOrCreateEmojiInputView())
     }
 
     private fun showToolsHubView() {
-        setInputView(toolsHubInputView)
+        setInputView(getOrCreateToolsHubInputView())
     }
 
     private fun showTextEditingView() {
-        setInputView(textEditingInputView)
+        setInputView(getOrCreateTextEditingInputView())
     }
 
     private fun showClipboardView() {
         clipboard.onSystemClipChanged()
         clipboard.captureSystem(this, enabled = true, privateField = privacyModeActive)
         clipboardMode = true
-        clipboardView.refresh()
-        setInputView(clipboardInputView)
+        val inputView = getOrCreateClipboardInputView()
+        clipboardView?.refresh()
+        setInputView(inputView)
     }
 
     private fun showKeyboardView() {
@@ -547,10 +598,11 @@ class OpenSwiftIME : InputMethodService() {
 
     private fun handleTextEditingAction(action: TextEditingView.Action) {
         val ic = currentInputConnection ?: return
+        val editing = textEditingView
         when (action) {
             TextEditingView.Action.CLIPBOARD -> showClipboardView()
             TextEditingView.Action.UP -> {
-                if (textEditingView.isSelectionModeActive) {
+                if (editing != null && editing.isSelectionModeActive) {
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_UP, 0, KeyEvent.META_SHIFT_ON))
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_UP, 0, KeyEvent.META_SHIFT_ON))
                 } else {
@@ -559,7 +611,7 @@ class OpenSwiftIME : InputMethodService() {
                 }
             }
             TextEditingView.Action.DOWN -> {
-                if (textEditingView.isSelectionModeActive) {
+                if (editing != null && editing.isSelectionModeActive) {
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_DOWN, 0, KeyEvent.META_SHIFT_ON))
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_DOWN, 0, KeyEvent.META_SHIFT_ON))
                 } else {
@@ -568,7 +620,7 @@ class OpenSwiftIME : InputMethodService() {
                 }
             }
             TextEditingView.Action.LEFT -> {
-                if (textEditingView.isSelectionModeActive) {
+                if (editing != null && editing.isSelectionModeActive) {
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, 0, KeyEvent.META_SHIFT_ON))
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT, 0, KeyEvent.META_SHIFT_ON))
                 } else {
@@ -577,7 +629,7 @@ class OpenSwiftIME : InputMethodService() {
                 }
             }
             TextEditingView.Action.RIGHT -> {
-                if (textEditingView.isSelectionModeActive) {
+                if (editing != null && editing.isSelectionModeActive) {
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT, 0, KeyEvent.META_SHIFT_ON))
                     ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT, 0, KeyEvent.META_SHIFT_ON))
                 } else {
@@ -586,7 +638,9 @@ class OpenSwiftIME : InputMethodService() {
                 }
             }
             TextEditingView.Action.SELECT_TOGGLE -> {
-                textEditingView.isSelectionModeActive = !textEditingView.isSelectionModeActive
+                if (editing != null) {
+                    editing.isSelectionModeActive = !editing.isSelectionModeActive
+                }
             }
             TextEditingView.Action.SELECT_ALL -> {
                 ic.performContextMenuAction(android.R.id.selectAll)
@@ -597,11 +651,11 @@ class OpenSwiftIME : InputMethodService() {
                     val cb = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                     cb?.setPrimaryClip(android.content.ClipData.newPlainText("OpenSwift", selected))
                     clipboard.add(selected)
-                    clipboardView.refresh()
+                    clipboardView?.refresh()
                 } else {
                     ic.performContextMenuAction(android.R.id.copy)
                     clipboard.captureSystem(this, enabled = true, privateField = false)
-                    clipboardView.refresh()
+                    clipboardView?.refresh()
                 }
             }
             TextEditingView.Action.CUT -> {
@@ -610,7 +664,7 @@ class OpenSwiftIME : InputMethodService() {
                     val cb = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                     cb?.setPrimaryClip(android.content.ClipData.newPlainText("OpenSwift", selected))
                     clipboard.add(selected)
-                    clipboardView.refresh()
+                    clipboardView?.refresh()
                 }
                 ic.performContextMenuAction(android.R.id.cut)
             }
@@ -881,15 +935,9 @@ class OpenSwiftIME : InputMethodService() {
             glideEnabled = !privacyModeActive && effective.glideEnabled,
             keyHeightDp = effective.keyHeightDp,
         )
-        if (::clipboardView.isInitialized) {
-            clipboardView.keyHeightDp = effective.keyHeightDp
-        }
-        if (::textEditingView.isInitialized) {
-            textEditingView.keyHeightDp = effective.keyHeightDp
-        }
-        if (::toolsHubView.isInitialized) {
-            toolsHubView.keyHeightDp = effective.keyHeightDp
-        }
+        clipboardView?.keyHeightDp = effective.keyHeightDp
+        textEditingView?.keyHeightDp = effective.keyHeightDp
+        toolsHubView?.keyHeightDp = effective.keyHeightDp
         if (::keyboardInputView.isInitialized) {
             keyboardInputView.requestLayout()
         }
