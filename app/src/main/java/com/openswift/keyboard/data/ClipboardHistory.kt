@@ -10,21 +10,37 @@ class ClipboardHistory(ctx: Context) {
 
     private val prefs = SecurePreferences.open(ctx, TypedDataStores.CLIPBOARD_HISTORY)
 
+    @Volatile
+    private var cachedItems: List<String>? = null
+
+    @Volatile
+    private var cachedPinnedItems: List<String>? = null
+
+    @Volatile
+    private var cachedPinnedSet: Set<String>? = null
+
     // Tracks when each text was deleted so old clips sitting in the system clipboard don't resurrect,
     // but any fresh copy of the same text is immediately allowed and captured!
     private val deletedTimestamps = mutableMapOf<String, Long>()
 
     fun items(): List<String> {
-        val raw = prefs.getString("items", null)
-        if (raw == null) {
-            val initialRecent = listOf("pkg update", "68245345")
-            save(initialRecent)
-            return initialRecent
+        cachedItems?.let { return it }
+        synchronized(this) {
+            cachedItems?.let { return it }
+            val raw = prefs.getString("items", null)
+            val list = if (raw == null) {
+                val initialRecent = listOf("pkg update", "68245345")
+                save(initialRecent)
+                initialRecent
+            } else {
+                runCatching {
+                    val arr = JSONArray(raw)
+                    List(arr.length()) { arr.getString(it) }
+                }.getOrDefault(emptyList())
+            }
+            cachedItems = list
+            return list
         }
-        return runCatching {
-            val arr = JSONArray(raw)
-            List(arr.length()) { arr.getString(it) }
-        }.getOrDefault(emptyList())
     }
 
     fun add(text: String): Boolean {
@@ -85,21 +101,37 @@ class ClipboardHistory(ctx: Context) {
     }
 
     fun pinnedItems(): List<String> {
-        val raw = prefs.getString("pinned_items", null)
-        if (raw == null) {
-            val defaultPinned = listOf(
-                "keysigner", "الف مبارك للجميع",
-                "payload.apk", "عبدج محمد ناجبر",
-                "مشاهدة ممتعة للجميع", "عبدالعزيز محمد عبدالله"
-            )
-            savePinned(defaultPinned)
-            return defaultPinned
+        cachedPinnedItems?.let { return it }
+        synchronized(this) {
+            cachedPinnedItems?.let { return it }
+            val raw = prefs.getString("pinned_items", null)
+            val list = if (raw == null) {
+                val defaultPinned = listOf(
+                    "keysigner", "الف مبارك للجميع",
+                    "payload.apk", "عبدج محمد ناجبر",
+                    "مشاهدة ممتعة للجميع", "عبدالعزيز محمد عبدالله"
+                )
+                savePinned(defaultPinned)
+                defaultPinned
+            } else {
+                runCatching {
+                    val arr = JSONArray(raw)
+                    List(arr.length()) { arr.getString(it) }
+                }.getOrDefault(emptyList())
+            }
+            cachedPinnedItems = list
+            cachedPinnedSet = list.toHashSet()
+            return list
         }
-        return runCatching {
-            val arr = JSONArray(raw)
-            List(arr.length()) { arr.getString(it) }
-        }.getOrDefault(emptyList())
     }
+
+    fun pinnedSet(): Set<String> {
+        cachedPinnedSet?.let { return it }
+        pinnedItems()
+        return cachedPinnedSet ?: emptySet()
+    }
+
+    fun isPinned(text: String): Boolean = pinnedSet().contains(text)
 
     fun removePinned(text: String) {
         savePinned(pinnedItems().filter { it != text })
@@ -120,15 +152,18 @@ class ClipboardHistory(ctx: Context) {
     }
 
     internal fun savePinned(list: List<String>) {
+        cachedPinnedItems = list
+        cachedPinnedSet = list.toHashSet()
         val arr = JSONArray()
         list.forEach { arr.put(it) }
-        prefs.edit().putString("pinned_items", arr.toString()).commit()
+        prefs.edit().putString("pinned_items", arr.toString()).apply()
     }
 
     internal fun save(list: List<String>) {
+        cachedItems = list
         val arr = JSONArray()
         list.forEach { arr.put(it) }
-        prefs.edit().putString("items", arr.toString()).commit()
+        prefs.edit().putString("items", arr.toString()).apply()
     }
 
     fun captureSystem(ctx: Context, enabled: Boolean, privateField: Boolean): Boolean {
