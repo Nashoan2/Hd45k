@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Google Material Icons Round "keyboard_arrow_down" (Hide Keyboard), Apache License 2.0 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
+    android:width="28dp"
+    android:height="28dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M8.12,9.29L12,13.17l3.88,-3.88c0.39,-0.39 1.02,-0.39 1.41,0 0.39,0.39 0.39,1.02 0,1.41l-4.59,4.59c-0.39,0.39 -1.02,0.39 -1.41,0L6.7,10.7c-0.39,-0.39 -0.39,-1.02 0,-1.41 0.39,-0.38 1.03,-0.39 1.42,0z" />
+        android:pathData="M5.7,8.7c0.4,-0.4 1.05,-0.4 1.45,0L12,13.55l4.85,-4.85c0.4,-0.4 1.05,-0.4 1.45,0 0.4,0.4 0.4,1.05 0,1.45l-5.58,5.58c-0.4,0.4 -1.05,0.4 -1.45,0L5.7,10.15c-0.4,-0.4 -0.4,-1.05 0,-1.45z" />
 </vector>

@@ -452,7 +452,9 @@ class KeyboardView(
 
                 icons.forEachIndexed { index, (action, drawable) ->
                     if (drawable != null) {
-                        val iconSize = if (action == "cursor" || action == "hide") {
+                        val iconSize = if (action == "hide") {
+                            (34f * density).toInt()
+                        } else if (action == "cursor") {
                             (27f * density).toInt()
                         } else {
                             defaultIconSize

@@ -270,14 +270,14 @@ class OpenSwiftIME : InputMethodService() {
             privateField = privacyModeActive
         )
         clipboardView?.refresh()
-        shiftActive = settings.autoCapitalize // Start with shift active if auto-capitalize is on
+        shiftActive = false // Always start with small / lowercase letters as requested
         symbolsActive = false
         emojiMode = false
         clipboardMode = false
         numberRowShown = false
         if (::keyboardView.isInitialized) {
             keyboardView.isResizeMode = false
-            keyboardView.setShift(shiftActive)
+            keyboardView.setShift(false)
         }
         if (::keyboardInputView.isInitialized) {
             showKeyboardView()
@@ -299,8 +299,10 @@ class OpenSwiftIME : InputMethodService() {
         emojiMode = false
         clipboardMode = false
         symbolsActive = false
+        shiftActive = false
         if (::keyboardView.isInitialized) {
             keyboardView.isResizeMode = false
+            keyboardView.setShift(false)
         }
         if (::keyboardInputView.isInitialized) {
             showKeyboardView()
