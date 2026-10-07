@@ -197,9 +197,10 @@ class ToolsHubView @JvmOverloads constructor(
             }
 
             if (drawable != null) {
-                val left = (centerX - iconSize / 2f).toInt()
-                val top = (centerY - iconSize / 2f).toInt()
-                drawable.setBounds(left, top, left + iconSize, top + iconSize)
+                val size = if (id == "cursor" || id == "hide") (27f * density).toInt() else iconSize
+                val left = (centerX - size / 2f).toInt()
+                val top = (centerY - size / 2f).toInt()
+                drawable.setBounds(left, top, left + size, top + size)
                 drawable.draw(canvas)
             }
         }

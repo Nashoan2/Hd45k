@@ -298,7 +298,7 @@ class ClipboardView @JvmOverloads constructor(
         canvas.drawText("حافظة النصوص", w / 2f, titleY, headerTitlePaint)
 
         // Right side: [ ∨ ] hide button on the far right
-        val iconSize = (22f * density).toInt()
+        val iconSize = (27f * density).toInt()
         val hideRight = (w - horizontalMargin).toInt()
         val hideLeft = hideRight - iconSize
         val iconTop = ((headerHeight - iconSize) / 2f).toInt()

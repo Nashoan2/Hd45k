@@ -62,7 +62,7 @@ fun KeyboardPreview(
                 painter = painterResource(R.drawable.ic_text_cursor),
                 contentDescription = "Cursor",
                 tint = subtleColor,
-                modifier = Modifier.size(17.dp)
+                modifier = Modifier.size(21.dp)
             )
             Icon(
                 painter = painterResource(R.drawable.ic_content_paste),
@@ -74,7 +74,7 @@ fun KeyboardPreview(
                 painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                 contentDescription = "Hide",
                 tint = subtleColor,
-                modifier = Modifier.size(17.dp)
+                modifier = Modifier.size(21.dp)
             )
         }
 

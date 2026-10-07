@@ -407,11 +407,16 @@ class KeyboardView(
                 )
                 val iconCount = icons.size
                 val iconSlotWidth = w / iconCount.toFloat()
-                val iconSize = (22f * density).toInt()
-                val iconTop = (y + ((suggestionHeightPx - iconSize) / 2f)).toInt()
+                val defaultIconSize = (22f * density).toInt()
 
                 icons.forEachIndexed { index, (action, drawable) ->
                     if (drawable != null) {
+                        val iconSize = if (action == "cursor" || action == "hide") {
+                            (27f * density).toInt()
+                        } else {
+                            defaultIconSize
+                        }
+                        val iconTop = (y + ((suggestionHeightPx - iconSize) / 2f)).toInt()
                         val centerX = (index * iconSlotWidth) + (iconSlotWidth / 2f)
                         val iconLeft = (centerX - (iconSize / 2f)).toInt()
                         val hitRect = Rect(
