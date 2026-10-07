@@ -750,7 +750,17 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private fun startVoiceTyping() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.RECORD_AUDIO
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                val intent = Intent(this, com.openswift.keyboard.voice.VoicePermissionActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            } catch (_: Exception) {}
             return
         }
         try {

@@ -151,8 +151,19 @@ class MainActivity : AppCompatActivity() {
         readEncryptedSync(uri, passphrase, pendingSyncImportMode)
     }
 
+    private val requestAudioPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.RECORD_AUDIO
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestAudioPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+        }
         val initialPerAppPackage = intent.getStringExtra(EXTRA_PER_APP_PACKAGE).orEmpty()
         val openSettings = intent.getBooleanExtra(EXTRA_OPEN_SETTINGS, false)
         setContent {
