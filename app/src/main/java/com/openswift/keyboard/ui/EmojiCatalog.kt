@@ -8,10 +8,12 @@ data class EmojiEntry(
 
 object EmojiCatalog {
     const val RECENTS = "Recent"
+    const val SHORTCUTS = "Shortcuts"
     const val FAVORITES = "Star"
 
     val categories = listOf(
         RECENTS,
+        SHORTCUTS,
         FAVORITES,
         "Smile",
         "Hand",
@@ -23,6 +25,10 @@ object EmojiCatalog {
         "Symbol"
     )
 
+    val shortcutValues = listOf(
+        "🤲", "🙏", "❤️", "🌹", "👍", "🤍", "👆", "👋", "🫡", "☑️", "👇", "⬆️"
+    )
+
     val entries = listOf(
         e("😀", "Smile", "grin happy face smile"),
         e("😁", "Smile", "grin happy face teeth"),
@@ -32,28 +38,32 @@ object EmojiCatalog {
         e("😍", "Smile", "love eyes heart face"),
         e("😘", "Smile", "kiss love face"),
         e("😎", "Smile", "cool sunglasses face"),
+        e("🫡", "Smile", "salute respect face تحية احترام تمام"),
         e("😢", "Smile", "sad cry tears face"),
         e("😡", "Smile", "angry mad face"),
         e("😴", "Smile", "sleep tired face"),
         e("🤔", "Smile", "think curious face"),
-        e("👍", "Hand", "thumb up yes like hand"),
+        e("👍", "Hand", "thumb up yes like hand نعم اعجاب لايك"),
         e("👎", "Hand", "thumb down no dislike hand"),
         e("👌", "Hand", "ok hand"),
         e("👏", "Hand", "clap applause hand"),
-        e("🙏", "Hand", "pray thanks please hand"),
-        e("👋", "Hand", "wave hello bye hand"),
+        e("🙏", "Hand", "pray thanks please hand رجاء شكر يدين"),
+        e("🤲", "Hand", "dua pray hands palms دعاء تضرع يدين كف"),
+        e("👆", "Hand", "finger index up hand اشارة سبابة اعلى فوق"),
+        e("👇", "Hand", "finger index down hand اشارة سبابة اسفل تحت"),
+        e("👋", "Hand", "wave hello bye hand سلام مرحبا مع السلامة"),
         e("✌️", "Hand", "peace victory hand"),
         e("🤝", "Hand", "handshake agree hand"),
         e("💪", "Hand", "strong flex arm"),
         e("🫶", "Hand", "heart hands love"),
-        e("❤️", "Heart", "heart red love"),
+        e("❤️", "Heart", "heart red love حب قلب احمر"),
         e("🧡", "Heart", "heart orange love"),
         e("💛", "Heart", "heart yellow love"),
         e("💚", "Heart", "heart green love"),
         e("💙", "Heart", "heart blue love"),
         e("💜", "Heart", "heart purple love"),
         e("🖤", "Heart", "heart black love"),
-        e("🤍", "Heart", "heart white love"),
+        e("🤍", "Heart", "heart white love قلب ابيض"),
         e("💔", "Heart", "heart broken sad"),
         e("💕", "Heart", "heart two love"),
         e("🍎", "Food", "apple fruit food"),
@@ -70,6 +80,7 @@ object EmojiCatalog {
         e("🐱", "Nature", "cat animal pet"),
         e("🦊", "Nature", "fox animal"),
         e("🐼", "Nature", "panda animal"),
+        e("🌹", "Nature", "rose flower nature وردة زهرة جوري"),
         e("🌲", "Nature", "tree nature"),
         e("🌻", "Nature", "flower nature"),
         e("🔥", "Nature", "fire hot"),
@@ -97,18 +108,24 @@ object EmojiCatalog {
         e("🔒", "Object", "lock private security"),
         e("🔑", "Object", "key security"),
         e("✅", "Symbol", "check yes done"),
+        e("☑️", "Symbol", "check box done tick صح تم مربع علامة"),
         e("❌", "Symbol", "x no close"),
         e("⚠️", "Symbol", "warning alert"),
         e("❓", "Symbol", "question help"),
         e("❗", "Symbol", "exclamation important"),
         e("➕", "Symbol", "plus add"),
         e("➖", "Symbol", "minus remove"),
+        e("⬆️", "Symbol", "arrow up top سهم فوق للاعلى"),
         e("➡️", "Symbol", "arrow right"),
         e("⬅️", "Symbol", "arrow left"),
         e("🔁", "Symbol", "repeat refresh")
     )
 
     val byValue = entries.associateBy { it.value }
+
+    val shortcuts: List<EmojiEntry> by lazy {
+        shortcutValues.mapNotNull { byValue[it] }
+    }
 
     fun search(query: String): List<EmojiEntry> {
         val q = query.trim().lowercase()

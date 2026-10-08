@@ -239,7 +239,21 @@ class ClipboardView @JvmOverloads constructor(
         }
     }
 
-    fun refresh() {
+    fun resetScroll() {
+        scroller.forceFinished(true)
+        scrollYOffset = 0f
+        isDragging = false
+        isSwiping = false
+        swipeOffsetX = 0f
+        activeDialogCard = null
+        pressedCard = null
+        swipedCard = null
+    }
+
+    fun refresh(resetScrollPosition: Boolean = true) {
+        if (resetScrollPosition) {
+            resetScroll()
+        }
         clipboard.invalidateCache()
         try {
             clipboard.captureSystem(context, enabled = true, privateField = false)
@@ -250,13 +264,15 @@ class ClipboardView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        refresh()
+        resetScroll()
+        refresh(resetScrollPosition = false)
     }
 
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
         super.onVisibilityChanged(changedView, visibility)
         if (visibility == View.VISIBLE) {
-            refresh()
+            resetScroll()
+            refresh(resetScrollPosition = false)
         }
     }
 
@@ -649,6 +665,7 @@ class ClipboardView @JvmOverloads constructor(
 
                 if (dialogPasteBounds.contains(x, y)) {
                     vibrateFeedback()
+                    resetScroll()
                     activeDialogCard = null
                     onItemSelected?.invoke(item)
                     invalidate()
@@ -808,6 +825,7 @@ class ClipboardView @JvmOverloads constructor(
                     // Check Header buttons
                     if (y <= headerHeight) {
                         if (abcBounds.contains(x, y)) {
+                            resetScroll()
                             onReturnToKeyboard?.invoke()
                             velocityTracker?.recycle()
                             velocityTracker = null
@@ -832,6 +850,7 @@ class ClipboardView @JvmOverloads constructor(
                         }
 
                         if (hideBounds.contains(x, y)) {
+                            resetScroll()
                             onClose?.invoke()
                             velocityTracker?.recycle()
                             velocityTracker = null
@@ -852,6 +871,7 @@ class ClipboardView @JvmOverloads constructor(
                                     invalidate()
                                 }
                             } else {
+                                resetScroll()
                                 onItemSelected?.invoke(card.text)
                             }
                             velocityTracker?.recycle()

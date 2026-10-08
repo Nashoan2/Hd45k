@@ -27,6 +27,7 @@ class EmojiView @JvmOverloads constructor(
     private val theme = Themes.Amoled
     private val density = resources.displayMetrics.density
     private val categoryBounds = mutableMapOf<String, RectF>()
+    private val quickShortcutBounds = mutableMapOf<String, RectF>()
     private val emojiBounds = mutableMapOf<String, Rect>()
     private val keyboardBounds = mutableMapOf<String, RectF>()
     private val actionBounds = mutableMapOf<String, RectF>()
@@ -34,11 +35,15 @@ class EmojiView @JvmOverloads constructor(
     private val favorites = loadList("favorites").toMutableList()
     private val searchRows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
 
-    private var selectedCategory = if (recents.isEmpty()) "Smile" else EmojiCatalog.RECENTS
+    private var selectedCategory = EmojiCatalog.SHORTCUTS
     private var query = ""
     private var searchActive = false
     private var scrollOffset = 0f
+    private var categoryScrollOffset = 0f
+    private var maxCategoryScroll = 0f
     private var lastY = 0f
+    private var lastX = 0f
+    private var isCategoryTouch = false
     private var downEmoji: String? = null
     private var downTime = 0L
     private var moved = false
@@ -88,11 +93,15 @@ class EmojiView @JvmOverloads constructor(
         canvas.drawColor(theme.background)
         val categoryHeight = 42f * density
         val searchHeight = 44f * density
+        val shortcutsHeight = if (!searchActive) 38f * density else 0f
         val keyboardHeight = if (searchActive) 112f * density else 0f
-        val gridTop = categoryHeight + searchHeight + keyboardHeight
+        val gridTop = categoryHeight + searchHeight + shortcutsHeight + keyboardHeight
 
         drawCategories(canvas, categoryHeight)
         drawSearch(canvas, categoryHeight, searchHeight)
+        if (!searchActive) {
+            drawQuickShortcuts(canvas, categoryHeight + searchHeight, shortcutsHeight)
+        }
         if (searchActive) {
             drawSearchKeyboard(canvas, categoryHeight + searchHeight)
         }
@@ -103,14 +112,24 @@ class EmojiView @JvmOverloads constructor(
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 lastY = event.y
+                lastX = event.x
                 moved = false
+                isCategoryTouch = event.y <= (42f * density)
                 downEmoji = findEmoji(event.x, event.y)
                 downTime = System.currentTimeMillis()
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 val dy = event.y - lastY
-                if (kotlin.math.abs(dy) > 4f * density) {
+                val dx = event.x - lastX
+                if (isCategoryTouch) {
+                    if (kotlin.math.abs(dx) > 4f * density) {
+                        moved = true
+                        categoryScrollOffset = (categoryScrollOffset - dx).coerceIn(0f, maxCategoryScroll)
+                        lastX = event.x
+                        invalidate()
+                    }
+                } else if (kotlin.math.abs(dy) > 4f * density) {
                     moved = true
                     scrollOffset = (scrollOffset - dy).coerceIn(0f, maxScroll())
                     lastY = event.y
@@ -121,6 +140,7 @@ class EmojiView @JvmOverloads constructor(
             MotionEvent.ACTION_UP -> {
                 if (!moved && handleTap(event.x, event.y)) return true
                 downEmoji = null
+                isCategoryTouch = false
                 return true
             }
         }
@@ -129,6 +149,7 @@ class EmojiView @JvmOverloads constructor(
 
     private fun categoryLabel(category: String): String = when (category) {
         EmojiCatalog.RECENTS -> "الأخيرة"
+        EmojiCatalog.SHORTCUTS -> "اختصارات"
         EmojiCatalog.FAVORITES -> "المفضلة"
         "Smile" -> "وجوه"
         "Hand" -> "أيدي"
@@ -143,15 +164,56 @@ class EmojiView @JvmOverloads constructor(
 
     private fun drawCategories(canvas: Canvas, height: Float) {
         categoryBounds.clear()
-        val tabWidth = width.toFloat() / EmojiCatalog.categories.size
-        textPaint.textSize = 10f * density
-        EmojiCatalog.categories.forEachIndexed { index, category ->
-            val left = index * tabWidth
+        textPaint.textSize = 11f * density
+        var currentX = 4f * density
+        val tabs = EmojiCatalog.categories
+        val totalWidth = tabs.sumOf { cat ->
+            val label = categoryLabel(cat)
+            val w = textPaint.measureText(label) + (20f * density)
+            maxOf(54f * density, w).toDouble()
+        }.toFloat() + (8f * density)
+        maxCategoryScroll = maxOf(0f, totalWidth - width)
+
+        canvas.save()
+        canvas.clipRect(0f, 0f, width.toFloat(), height)
+
+        tabs.forEach { category ->
+            val label = categoryLabel(category)
+            val labelWidth = textPaint.measureText(label) + (20f * density)
+            val tabWidth = maxOf(54f * density, labelWidth)
+            val left = currentX - categoryScrollOffset
             val rect = RectF(left + 2f, 4f, left + tabWidth - 2f, height - 4f)
             categoryBounds[category] = rect
             val selected = category == selectedCategory && query.isBlank()
             canvas.drawRoundRect(rect, 8f * density, 8f * density, if (selected) selectedPaint else mutedPaint)
-            canvas.drawText(categoryLabel(category), rect.centerX(), rect.centerY() + 4f * density, textPaint)
+            canvas.drawText(label, rect.centerX(), rect.centerY() + 4f * density, textPaint)
+            currentX += tabWidth
+        }
+        canvas.restore()
+    }
+
+    private fun drawQuickShortcuts(canvas: Canvas, top: Float, height: Float) {
+        quickShortcutBounds.clear()
+        val margin = 6f * density
+        val pillRect = RectF(margin, top + 2f * density, width - margin, top + height - 2f * density)
+        canvas.drawRoundRect(pillRect, 8f * density, 8f * density, panelPaint)
+
+        val items = EmojiCatalog.shortcutValues
+        val count = items.size
+        val itemWidth = pillRect.width() / count
+        val emojiSize = minOf(itemWidth * 0.76f, 22f * density)
+        val textPaintY = pillRect.centerY() + (emojiSize * 0.36f)
+
+        val shortcutPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = emojiSize
+            textAlign = Paint.Align.CENTER
+        }
+
+        items.forEachIndexed { index, emoji ->
+            val left = pillRect.left + (index * itemWidth)
+            val rect = RectF(left, pillRect.top, left + itemWidth, pillRect.bottom)
+            quickShortcutBounds[emoji] = rect
+            canvas.drawText(emoji, rect.centerX(), textPaintY, shortcutPaint)
         }
     }
 
@@ -247,6 +309,21 @@ class EmojiView @JvmOverloads constructor(
             query = ""
             searchActive = false
             scrollOffset = 0f
+            // Scroll tab into view if near edges
+            val rect = it.value
+            val pad = 16f * density
+            if (rect.left < pad) {
+                categoryScrollOffset = (categoryScrollOffset - (pad - rect.left)).coerceIn(0f, maxCategoryScroll)
+            } else if (rect.right > width - pad) {
+                categoryScrollOffset = (categoryScrollOffset + (rect.right - (width - pad))).coerceIn(0f, maxCategoryScroll)
+            }
+            invalidate()
+            return true
+        }
+        quickShortcutBounds.entries.firstOrNull { it.value.contains(x, y) }?.let {
+            val emoji = it.key
+            addRecent(emoji)
+            onEmojiSelected?.invoke(emoji)
             invalidate()
             return true
         }
@@ -299,6 +376,7 @@ class EmojiView @JvmOverloads constructor(
     private fun currentEntries(): List<EmojiEntry> {
         if (query.isNotBlank()) return EmojiCatalog.search(query)
         return when (selectedCategory) {
+            EmojiCatalog.SHORTCUTS -> EmojiCatalog.shortcuts
             EmojiCatalog.RECENTS -> recents.mapNotNull { EmojiCatalog.byValue[it] }
             EmojiCatalog.FAVORITES -> favorites.mapNotNull { EmojiCatalog.byValue[it] }
             else -> EmojiCatalog.entries.filter { it.category == selectedCategory }
@@ -309,7 +387,8 @@ class EmojiView @JvmOverloads constructor(
         val columns = 8
         val rows = (currentEntries().size + columns - 1) / columns
         val keyboardHeight = if (searchActive) 112f * density else 0f
-        val gridTop = 42f * density + 44f * density + keyboardHeight
+        val shortcutsHeight = if (!searchActive) 38f * density else 0f
+        val gridTop = 42f * density + 44f * density + shortcutsHeight + keyboardHeight
         val contentHeight = rows * (width.toFloat() / columns)
         return max(0f, contentHeight - (height - gridTop))
     }

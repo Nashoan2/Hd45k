@@ -25,4 +25,12 @@ class EmojiCatalogTest {
     fun everyEntryIsAddressableByValue() {
         assertEquals(EmojiCatalog.entries.size, EmojiCatalog.byValue.size)
     }
+
+    @Test
+    fun shortcutsContainAllRequestedEmojis() {
+        val expected = listOf("🤲", "🙏", "❤️", "🌹", "👍", "🤍", "👆", "👋", "🫡", "☑️", "👇", "⬆️")
+        assertTrue(EmojiCatalog.categories.contains(EmojiCatalog.SHORTCUTS))
+        assertEquals(expected.size, EmojiCatalog.shortcuts.size)
+        assertEquals(expected, EmojiCatalog.shortcuts.map { it.value })
+    }
 }
