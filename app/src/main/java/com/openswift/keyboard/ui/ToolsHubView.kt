@@ -52,6 +52,15 @@ class ToolsHubView @JvmOverloads constructor(
             invalidate()
         }
 
+    var explicitHeightPx: Int = 0
+        set(value) {
+            if (field != value) {
+                field = value
+                requestLayout()
+                invalidate()
+            }
+        }
+
     private val density = resources.displayMetrics.density
 
     // Colors matching screenshot #91
@@ -140,9 +149,13 @@ class ToolsHubView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val keyHeightPx = keyHeightDp * density
-        val targetHeight = (4 * keyHeightPx) + (2f * density * 3) + (keyHeightPx * 0.82f) + (8f * density)
-        setMeasuredDimension(w, targetHeight.toInt())
+        val targetHeight = if (explicitHeightPx > 0) {
+            explicitHeightPx
+        } else {
+            val keyHeightPx = keyHeightDp * density
+            ((4 * keyHeightPx) + (2f * density * 3) + (keyHeightPx * 0.82f) + (8f * density)).toInt()
+        }
+        setMeasuredDimension(w, targetHeight)
     }
 
     override fun onDraw(canvas: Canvas) {

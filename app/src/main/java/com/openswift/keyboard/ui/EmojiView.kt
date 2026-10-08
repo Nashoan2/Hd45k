@@ -68,9 +68,18 @@ class EmojiView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
 
+    var explicitHeightPx: Int = 0
+        set(value) {
+            if (field != value) {
+                field = value
+                requestLayout()
+                invalidate()
+            }
+        }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
-        val desiredHeight = (360f * density).toInt()
+        val desiredHeight = if (explicitHeightPx > 0) explicitHeightPx else (360f * density).toInt()
         val height = resolveSize(desiredHeight, heightMeasureSpec)
         setMeasuredDimension(width, height)
     }

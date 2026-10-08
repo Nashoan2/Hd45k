@@ -59,6 +59,15 @@ class ClipboardView @JvmOverloads constructor(
             invalidate()
         }
 
+    var explicitHeightPx: Int = 0
+        set(value) {
+            if (field != value) {
+                field = value
+                requestLayout()
+                invalidate()
+            }
+        }
+
     // Modal Action Dialog for long-press
     private var activeDialogCard: ClipCard? = null
     private val dialogRect = RectF()
@@ -253,9 +262,13 @@ class ClipboardView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val keyHeightPx = keyHeightDp * density
-        val targetHeight = (4 * keyHeightPx) + (2f * density * 3) + (keyHeightPx * 0.82f) + (8f * density)
-        setMeasuredDimension(w, targetHeight.toInt())
+        val targetHeight = if (explicitHeightPx > 0) {
+            explicitHeightPx
+        } else {
+            val keyHeightPx = keyHeightDp * density
+            ((4 * keyHeightPx) + (2f * density * 3) + (keyHeightPx * 0.82f) + (8f * density)).toInt()
+        }
+        setMeasuredDimension(w, targetHeight)
     }
 
     override fun onDraw(canvas: Canvas) {

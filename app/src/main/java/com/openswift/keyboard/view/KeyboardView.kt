@@ -1090,6 +1090,25 @@ class KeyboardView(
         }
     }
 
+    /**
+     * Calculates the exact pixel height of the keyboard view so all auxiliary views
+     * (Clipboard, Cursor/TextEditing, ToolsHub) match its exact height with zero jump.
+     */
+    fun getEffectiveHeightPx(): Int {
+        val density = resources.displayMetrics.density
+        val keyHeightPx = keyHeightDp * density
+        val numRows = if (effectiveLayout.id == "numpad") 4 else effectiveLayout.rows.size
+        val rowSpacingPx = 2f * density
+        val suggestionHeight = if (toolbarVisible || predictionEnabled) {
+            (4f * density) + (keyHeightPx * 0.82f) + (4f * density)
+        } else {
+            0f
+        }
+        val rowsHeight = (keyHeightPx * numRows) +
+            (rowSpacingPx * (numRows - 1).coerceAtLeast(0))
+        return ceil(suggestionHeight + rowsHeight).toInt()
+    }
+
     fun setShift(active: Boolean) {
         shiftActive = active
         invalidate()

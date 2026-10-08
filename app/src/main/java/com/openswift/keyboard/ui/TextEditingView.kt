@@ -61,6 +61,15 @@ class TextEditingView @JvmOverloads constructor(
             invalidate()
         }
 
+    var explicitHeightPx: Int = 0
+        set(value) {
+            if (field != value) {
+                field = value
+                requestLayout()
+                invalidate()
+            }
+        }
+
     private val density = resources.displayMetrics.density
 
     // Colors matching screenshot #90
@@ -140,9 +149,13 @@ class TextEditingView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        val keyHeightPx = keyHeightDp * density
-        val targetHeight = (4 * keyHeightPx) + (2f * density * 3) + (keyHeightPx * 0.82f) + (8f * density)
-        setMeasuredDimension(w, targetHeight.toInt())
+        val targetHeight = if (explicitHeightPx > 0) {
+            explicitHeightPx
+        } else {
+            val keyHeightPx = keyHeightDp * density
+            ((4 * keyHeightPx) + (2f * density * 3) + (keyHeightPx * 0.82f) + (8f * density)).toInt()
+        }
+        setMeasuredDimension(w, targetHeight)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -251,7 +264,8 @@ class TextEditingView @JvmOverloads constructor(
 
                 // Background
                 val isSelectionActive = (item.action == Action.SELECT_TOGGLE && isSelectionModeActive)
-                val paintToUse = if (isSelectionActive) keyActiveBgPaint else keyBgPaint
+                val isPressed = (item.action == pressedAction)
+                val paintToUse = if (isSelectionActive || isPressed) keyActiveBgPaint else keyBgPaint
                 canvas.drawRoundRect(rect, keyCornerRadius, keyCornerRadius, paintToUse)
 
                 // Content
@@ -303,31 +317,127 @@ class TextEditingView @JvmOverloads constructor(
         val icon: android.graphics.drawable.Drawable? = null
     )
 
+    private var pressedAction: Action? = null
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+    private var isDeleteActive = false
+    private var deleteRepeatCount = 0
+    private val deleteRepeatHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private val deleteRepeatRunnable = object : Runnable {
+        override fun run() {
+            if (!isDeleteActive) return
+            deleteRepeatCount++
+            onAction?.invoke(Action.DELETE)
+            try {
+                performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+            } catch (_: Exception) {}
+
+            // Accelerating repeat rate for super fast continuous deletion
+            val interval = when {
+                deleteRepeatCount > 15 -> 14L // Ultra-fast continuous delete (~70/sec)
+                deleteRepeatCount > 6 -> 28L  // Rapid delete (~35/sec)
+                else -> 55L                   // Initial repetition
+            }
+            deleteRepeatHandler.postDelayed(this, interval)
+        }
+    }
+
+    private fun stopDeleteRepeat() {
+        isDeleteActive = false
+        deleteRepeatHandler.removeCallbacks(deleteRepeatRunnable)
+        deleteRepeatCount = 0
+    }
+
+    override fun onDetachedFromWindow() {
+        stopDeleteRepeat()
+        super.onDetachedFromWindow()
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_UP) {
-            // Check Toolbar clicks
-            for ((id, rect) in toolbarBounds) {
-                if (rect.contains(event.x, event.y)) {
-                    when (id) {
-                        "hub" -> onOpenHub?.invoke()
-                        "emoji" -> onOpenEmoji?.invoke()
-                        "clipboard" -> onOpenClipboard?.invoke()
-                        "hide" -> onClose?.invoke()
+        val x = event.x
+        val y = event.y
+
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                touchDownX = x
+                touchDownY = y
+                // Check Keypad clicks
+                for ((action, rect) in keyBounds) {
+                    if (rect.contains(x, y)) {
+                        pressedAction = action
+                        invalidate()
+                        if (action == Action.DELETE) {
+                            isDeleteActive = true
+                            deleteRepeatCount = 0
+                            // Instant deletion on touch down!
+                            onAction?.invoke(Action.DELETE)
+                            try {
+                                performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                            } catch (_: Exception) {}
+                            deleteRepeatHandler.postDelayed(deleteRepeatRunnable, 220L)
+                            return true
+                        }
+                        break
+                    }
+                }
+                return true
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                if (isDeleteActive) {
+                    val dist = kotlin.math.hypot(x - touchDownX, y - touchDownY)
+                    if (dist > 32f * density) {
+                        stopDeleteRepeat()
+                        pressedAction = null
+                        invalidate()
                     }
                     return true
                 }
             }
 
-            // Check Keypad clicks
-            for ((action, rect) in keyBounds) {
-                if (rect.contains(event.x, event.y)) {
-                    if (action == Action.CLIPBOARD) {
-                        onOpenClipboard?.invoke()
-                    } else {
-                        onAction?.invoke(action)
-                    }
+            MotionEvent.ACTION_UP -> {
+                val wasDelete = isDeleteActive
+                stopDeleteRepeat()
+                pressedAction = null
+                invalidate()
+
+                if (wasDelete) {
                     return true
                 }
+
+                // Check Toolbar clicks
+                for ((id, rect) in toolbarBounds) {
+                    if (rect.contains(x, y)) {
+                        when (id) {
+                            "hub" -> onOpenHub?.invoke()
+                            "emoji" -> onOpenEmoji?.invoke()
+                            "clipboard" -> onOpenClipboard?.invoke()
+                            "hide" -> onClose?.invoke()
+                        }
+                        return true
+                    }
+                }
+
+                // Check Keypad clicks
+                for ((action, rect) in keyBounds) {
+                    if (rect.contains(x, y)) {
+                        if (action == Action.CLIPBOARD) {
+                            onOpenClipboard?.invoke()
+                        } else if (action != Action.DELETE) {
+                            onAction?.invoke(action)
+                        }
+                        return true
+                    }
+                }
+                return true
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
+                stopDeleteRepeat()
+                pressedAction = null
+                invalidate()
+                return true
             }
         }
         return true

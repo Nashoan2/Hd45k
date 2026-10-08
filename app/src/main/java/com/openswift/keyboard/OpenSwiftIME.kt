@@ -176,6 +176,9 @@ class OpenSwiftIME : InputMethodService() {
                 emojiMode = false
                 showKeyboardView()
             }
+            if (::keyboardView.isInitialized) {
+                view.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+            }
             emojiView = view
             inputView = withNavigationBarInset(view, Themes.Amoled.background)
             emojiInputView = inputView
@@ -202,6 +205,9 @@ class OpenSwiftIME : InputMethodService() {
                 clipboardMode = false
                 showKeyboardView()
             }
+            if (::keyboardView.isInitialized) {
+                view.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+            }
             clipboardView = view
             inputView = withNavigationBarInset(view, 0xFF000000.toInt())
             clipboardInputView = inputView
@@ -218,6 +224,9 @@ class OpenSwiftIME : InputMethodService() {
             view.onOpenClipboard = { showClipboardView() }
             view.onClose = { showKeyboardView() }
             view.onAction = { action -> handleTextEditingAction(action) }
+            if (::keyboardView.isInitialized) {
+                view.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+            }
             textEditingView = view
             inputView = withNavigationBarInset(view, 0xFF14171E.toInt())
             textEditingInputView = inputView
@@ -238,6 +247,9 @@ class OpenSwiftIME : InputMethodService() {
             }
             view.onClose = { showKeyboardView() }
             view.onToolSelected = { tool -> handleToolSelected(tool) }
+            if (::keyboardView.isInitialized) {
+                view.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+            }
             toolsHubView = view
             inputView = withNavigationBarInset(view, 0xFF14171E.toInt())
             toolsHubInputView = inputView
@@ -574,15 +586,27 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private fun showEmojiView() {
-        setInputView(getOrCreateEmojiInputView())
+        val inputView = getOrCreateEmojiInputView()
+        if (::keyboardView.isInitialized) {
+            emojiView?.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+        }
+        setInputView(inputView)
     }
 
     private fun showToolsHubView() {
-        setInputView(getOrCreateToolsHubInputView())
+        val inputView = getOrCreateToolsHubInputView()
+        if (::keyboardView.isInitialized) {
+            toolsHubView?.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+        }
+        setInputView(inputView)
     }
 
     private fun showTextEditingView() {
-        setInputView(getOrCreateTextEditingInputView())
+        val inputView = getOrCreateTextEditingInputView()
+        if (::keyboardView.isInitialized) {
+            textEditingView?.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+        }
+        setInputView(inputView)
     }
 
     private fun showClipboardView() {
@@ -590,6 +614,9 @@ class OpenSwiftIME : InputMethodService() {
         clipboard.captureSystem(this, enabled = true, privateField = privacyModeActive)
         clipboardMode = true
         val inputView = getOrCreateClipboardInputView()
+        if (::keyboardView.isInitialized) {
+            clipboardView?.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+        }
         clipboardView?.refresh()
         setInputView(inputView)
     }
@@ -679,7 +706,16 @@ class OpenSwiftIME : InputMethodService() {
                 }
             }
             TextEditingView.Action.DELETE -> {
-                ic.deleteSurroundingText(1, 0)
+                val selected = ic.getSelectedText(0)
+                if (!selected.isNullOrEmpty()) {
+                    ic.commitText("", 1)
+                } else {
+                    val deleted = ic.deleteSurroundingText(1, 0)
+                    if (!deleted) {
+                        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
+                        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
+                    }
+                }
             }
             TextEditingView.Action.SPACE -> {
                 ic.commitText(" ", 1)
@@ -940,6 +976,11 @@ class OpenSwiftIME : InputMethodService() {
         clipboardView?.keyHeightDp = effective.keyHeightDp
         textEditingView?.keyHeightDp = effective.keyHeightDp
         toolsHubView?.keyHeightDp = effective.keyHeightDp
+        val exactHeight = keyboardView.getEffectiveHeightPx()
+        clipboardView?.explicitHeightPx = exactHeight
+        textEditingView?.explicitHeightPx = exactHeight
+        toolsHubView?.explicitHeightPx = exactHeight
+        emojiView?.explicitHeightPx = exactHeight
         if (::keyboardInputView.isInitialized) {
             keyboardInputView.requestLayout()
         }
