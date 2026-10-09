@@ -104,6 +104,7 @@ class KeyboardView(
         private val NUMPAD_KEY_EQUALS = Key("=", '='.code)
         private val NUMPAD_KEY_PERIOD = Key(".", '.'.code)
         private val NUMPAD_KEY_ENTER = Key("Enter", KC.ENTER, isModifier = true)
+        const val TOOLBAR_HEIGHT_DP = 44f
     }
 
     private var onKeyListener: ((Int, String) -> Unit)? = null
@@ -377,7 +378,7 @@ class KeyboardView(
         val numRows = if (effectiveLayout.id == "numpad") 4 else effectiveLayout.rows.size // includes number row if enabled
         val rowSpacingPx = 4.2f * density
         val suggestionHeight = if (toolbarVisible || predictionEnabled) {
-            (2f * density) + (keyHeightPx * 0.56f) + (4f * density)
+            (2f * density) + (TOOLBAR_HEIGHT_DP * density) + (4f * density)
         } else {
             0f
         }
@@ -397,7 +398,7 @@ class KeyboardView(
         
         // Calculate key height in pixels (contract: keyHeightPx * 0.82f)
         val keyHeightPx = keyHeightDp * density
-        val suggestionHeightPx = keyHeightPx * 0.56f
+        val suggestionHeightPx = TOOLBAR_HEIGHT_DP * density
         val rowSpacingPx = 4.2f * density
         val keyPadding = 2.8f * density
         val keyCornerRadius = 6f * density
@@ -542,7 +543,7 @@ class KeyboardView(
 
                 // Divider lines between slots
                 toolbarDividerPaint.strokeWidth = 1.5f * density
-                val dividerHalfH = barHeight * 0.26f
+                val dividerHalfH = 10.5f * density
                 val dividerCenterY = toolbarBarRect.centerY()
                 for (i in 1 until iconCount) {
                     val divX = toolbarBarRect.left + (i * slotWidth)
@@ -557,32 +558,32 @@ class KeyboardView(
                         val iconH: Float
                         when (action) {
                             "hide" -> {
-                                iconW = barHeight * 0.76f
-                                iconH = barHeight * 0.68f
+                                iconW = 27f * density
+                                iconH = 25f * density
                             }
                             "cursor" -> {
-                                iconW = barHeight * 0.72f
-                                iconH = barHeight * 0.66f
+                                iconW = 26f * density
+                                iconH = 24f * density
                             }
                             "emoji" -> {
-                                iconW = barHeight * 0.58f
-                                iconH = barHeight * 0.58f
+                                iconW = 23f * density
+                                iconH = 23f * density
                             }
                             "voice" -> {
-                                iconW = barHeight * 0.58f
-                                iconH = barHeight * 0.58f
+                                iconW = 23f * density
+                                iconH = 23f * density
                             }
                             "clipboard" -> {
-                                iconW = barHeight * 0.56f
-                                iconH = barHeight * 0.56f
+                                iconW = 22f * density
+                                iconH = 22f * density
                             }
                             "hub" -> {
-                                iconW = barHeight * 0.55f
-                                iconH = barHeight * 0.55f
+                                iconW = 22f * density
+                                iconH = 22f * density
                             }
                             else -> {
-                                iconW = barHeight * 0.56f
-                                iconH = barHeight * 0.56f
+                                iconW = 22f * density
+                                iconH = 22f * density
                             }
                         }
 
@@ -1229,7 +1230,7 @@ class KeyboardView(
         val numRows = if (effectiveLayout.id == "numpad") 4 else effectiveLayout.rows.size
         val rowSpacingPx = 4.2f * density
         val suggestionHeight = if (toolbarVisible || predictionEnabled) {
-            (2f * density) + (keyHeightPx * 0.56f) + (4f * density)
+            (2f * density) + (TOOLBAR_HEIGHT_DP * density) + (4f * density)
         } else {
             0f
         }

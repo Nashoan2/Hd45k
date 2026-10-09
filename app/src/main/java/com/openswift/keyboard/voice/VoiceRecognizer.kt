@@ -11,10 +11,10 @@ import java.util.*
 /**
  * High-speed, responsive voice input manager:
  * - Real-time streaming transcription with partial results.
- * - Auto-stops after 7 seconds if no speech is detected.
- * - Does NOT touch or modify phone audio/volume settings in any way.
- * - Suppresses all error toasts and intrusive dialogs.
- * - Works reliably across all phones and Android versions using system SpeechRecognizer.
+ * - Single continuous session with generous silence timeouts so it waits for the speaker.
+ * - Strictly does NOT touch, modify, or mute phone audio/volume settings.
+ * - Plays only the system mic-on cue upon activation, zero stop sounds.
+ * - Suppresses all intrusive error toasts and dialogs.
  */
 class VoiceRecognizer(private val ctx: Context) {
 
@@ -25,21 +25,19 @@ class VoiceRecognizer(private val ctx: Context) {
 
     private var recognizer: SpeechRecognizer? = null
     private var isListening = false
-    private var isContinuous = false
     private var currentLanguage: String = Locale.getDefault().language
     private val mainHandler = Handler(Looper.getMainLooper())
     private var lastPartialDispatched = ""
 
     private val silenceTimeoutRunnable = Runnable {
-        // Automatically stop after 7 seconds if no speech is detected
-        if (isListening || isContinuous) {
+        if (isListening) {
             stopListening()
         }
     }
 
     private fun resetSilenceTimer() {
         mainHandler.removeCallbacks(silenceTimeoutRunnable)
-        if (isListening || isContinuous) {
+        if (isListening) {
             mainHandler.postDelayed(silenceTimeoutRunnable, SILENCE_TIMEOUT_MS)
         }
     }
@@ -71,7 +69,6 @@ class VoiceRecognizer(private val ctx: Context) {
                 return false
             }
             try {
-                // Use the standard system SpeechRecognizer which works reliably across all devices
                 recognizer = SpeechRecognizer.createSpeechRecognizer(ctx)
             } catch (_: Exception) {
                 try {
@@ -91,12 +88,15 @@ class VoiceRecognizer(private val ctx: Context) {
                 }
 
                 override fun onRmsChanged(rmsdB: Float) {
-                    if (rmsdB > 2.0f) {
+                    if (rmsdB > 1.2f) {
                         resetSilenceTimer()
                     }
                 }
 
-                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onBufferReceived(buffer: ByteArray?) {
+                    resetSilenceTimer()
+                }
+
                 override fun onEndOfSpeech() {}
 
                 override fun onPartialResults(results: android.os.Bundle?) {
@@ -117,18 +117,17 @@ class VoiceRecognizer(private val ctx: Context) {
                         onResult?.invoke(text)
                     }
 
-                    // Session already completed naturally; update state without calling cancel()
-                    // so we don't trigger a redundant close tone after completion.
+                    // Session completed naturally; update state without restarting
+                    // so no redundant completion or loop beeps occur.
                     isListening = false
-                    isContinuous = false
                     mainHandler.removeCallbacks(silenceTimeoutRunnable)
                     onStateChanged?.invoke(false)
                 }
 
                 override fun onError(error: Int) {
-                    if (!isListening && !isContinuous) return
+                    if (!isListening) return
 
-                    // Flush any partial text that was already transcribed before the pause/timeout
+                    // Flush any pending text transcribed before pause/error
                     if (lastPartialDispatched.isNotBlank()) {
                         val pending = lastPartialDispatched
                         lastPartialDispatched = ""
@@ -136,7 +135,6 @@ class VoiceRecognizer(private val ctx: Context) {
                     }
 
                     isListening = false
-                    isContinuous = false
                     mainHandler.removeCallbacks(silenceTimeoutRunnable)
                     onStateChanged?.invoke(false)
                     onError?.invoke("")
@@ -166,27 +164,26 @@ class VoiceRecognizer(private val ctx: Context) {
             putExtra("android.speech.extra.DICTATION_MODE", true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
-            // Keep session open across natural pauses while live partial results write words immediately
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
+            // Generous silence threshold: does not cut off speech during thinking or breathing pauses
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 0L)
         }
     }
 
-    fun startListening(languageCode: String? = null, continuous: Boolean = false) {
+    fun startListening(languageCode: String? = null) {
         currentLanguage = languageCode ?: Locale.getDefault().language
-        isContinuous = continuous
         isListening = true
         lastPartialDispatched = ""
 
         if (!initRecognizer()) {
             isListening = false
-            isContinuous = false
             onStateChanged?.invoke(false)
             return
         }
 
         try {
+            recognizer?.cancel()
             recognizer?.startListening(buildIntent())
             resetSilenceTimer()
             onStateChanged?.invoke(true)
@@ -198,7 +195,6 @@ class VoiceRecognizer(private val ctx: Context) {
                 onStateChanged?.invoke(true)
             } catch (_: Exception) {
                 isListening = false
-                isContinuous = false
                 mainHandler.removeCallbacks(silenceTimeoutRunnable)
                 onStateChanged?.invoke(false)
             }
@@ -207,7 +203,6 @@ class VoiceRecognizer(private val ctx: Context) {
 
     fun stopListening() {
         val wasListening = isListening
-        isContinuous = false
         isListening = false
         if (lastPartialDispatched.isNotBlank()) {
             val pending = lastPartialDispatched
@@ -224,14 +219,11 @@ class VoiceRecognizer(private val ctx: Context) {
     }
 
     fun destroy() {
-        isContinuous = false
         isListening = false
         mainHandler.removeCallbacks(silenceTimeoutRunnable)
         mainHandler.removeCallbacksAndMessages(null)
         try {
             recognizer?.cancel()
-        } catch (_: Exception) {}
-        try {
             recognizer?.destroy()
         } catch (_: Exception) {}
         recognizer = null

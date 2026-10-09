@@ -927,7 +927,7 @@ class OpenSwiftIME : InputMethodService() {
                 keyboardView.isVoiceListening = true
                 keyboardView.invalidate()
             }
-            voiceRecognizer?.startListening(lang, continuous = false)
+            voiceRecognizer?.startListening(lang)
         } catch (_: Exception) {
             currentInputConnection?.finishComposingText()
             isListeningVoice = false
