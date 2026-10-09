@@ -19,9 +19,31 @@ class ClipboardHistory(ctx: Context) {
     @Volatile
     private var cachedPinnedSet: Set<String>? = null
 
-    // Tracks when each text was deleted so old clips sitting in the system clipboard don't resurrect,
-    // but any fresh copy of the same text is immediately allowed and captured!
+    // Tracks deleted texts (persisted in preferences) so old clips sitting in the system clipboard
+    // never resurrect after closing and reopening the app, while any fresh copy is immediately allowed!
     private val deletedTimestamps = mutableMapOf<String, Long>()
+    private var deletedItemsLoaded = false
+
+    private fun ensureDeletedLoaded() {
+        if (deletedItemsLoaded) return
+        deletedItemsLoaded = true
+        val raw = prefs.getString("deleted_items", null) ?: return
+        runCatching {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val item = arr.optString(i)
+                if (item.isNotBlank()) {
+                    deletedTimestamps[item] = Long.MAX_VALUE / 2
+                }
+            }
+        }
+    }
+
+    private fun persistDeletedItems() {
+        val arr = JSONArray()
+        deletedTimestamps.keys.take(200).forEach { arr.put(it) }
+        prefs.edit().putString("deleted_items", arr.toString()).commit()
+    }
 
     fun invalidateCache() {
         synchronized(this) {
@@ -52,7 +74,10 @@ class ClipboardHistory(ctx: Context) {
     }
 
     fun add(text: String): Boolean {
-        deletedTimestamps.remove(text)
+        ensureDeletedLoaded()
+        if (deletedTimestamps.remove(text) != null) {
+            persistDeletedItems()
+        }
         val current = items()
         val updated = withCapturedItem(current, text)
         if (updated == current) return false
@@ -62,11 +87,17 @@ class ClipboardHistory(ctx: Context) {
 
     fun onSystemClipChanged() {
         // When the user performs a new copy in the system, clear transient deletion blocks
-        deletedTimestamps.clear()
+        ensureDeletedLoaded()
+        if (deletedTimestamps.isNotEmpty()) {
+            deletedTimestamps.clear()
+            persistDeletedItems()
+        }
     }
 
     fun markAsDeleted(text: String) {
+        ensureDeletedLoaded()
         deletedTimestamps[text] = System.currentTimeMillis()
+        persistDeletedItems()
     }
 
     fun remove(text: String, ctx: Context? = null) {
@@ -76,7 +107,9 @@ class ClipboardHistory(ctx: Context) {
     }
 
     fun clear(ctx: Context? = null) {
-        items().forEach { markAsDeleted(it) }
+        ensureDeletedLoaded()
+        items().forEach { deletedTimestamps[it] = System.currentTimeMillis() }
+        persistDeletedItems()
         save(emptyList())
         if (ctx != null) {
             clearSystemClip(ctx)
@@ -164,18 +197,19 @@ class ClipboardHistory(ctx: Context) {
         cachedPinnedSet = list.toHashSet()
         val arr = JSONArray()
         list.forEach { arr.put(it) }
-        prefs.edit().putString("pinned_items", arr.toString()).apply()
+        prefs.edit().putString("pinned_items", arr.toString()).commit()
     }
 
     internal fun save(list: List<String>) {
         cachedItems = list
         val arr = JSONArray()
         list.forEach { arr.put(it) }
-        prefs.edit().putString("items", arr.toString()).apply()
+        prefs.edit().putString("items", arr.toString()).commit()
     }
 
     fun captureSystem(ctx: Context, enabled: Boolean, privateField: Boolean): Boolean {
         if (!enabled || privateField) return false
+        ensureDeletedLoaded()
         val cb = try {
             ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? SystemClipboard
         } catch (_: Exception) {
@@ -209,10 +243,10 @@ class ClipboardHistory(ctx: Context) {
             } else {
                 0L
             }
-            val elapsed = System.currentTimeMillis() - deletedTime
-            if (clipTime > deletedTime || elapsed > 2500L) {
+            if (clipTime > 0L && clipTime > deletedTime) {
                 // User explicitly re-copied this text after deleting it; accept it!
                 deletedTimestamps.remove(text)
+                persistDeletedItems()
             } else {
                 // Stale clip sitting in system buffer from before deletion; skip it
                 return false

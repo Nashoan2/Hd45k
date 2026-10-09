@@ -2,7 +2,6 @@ package com.openswift.keyboard.voice
 
 import android.content.Context
 import android.content.Intent
-import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognizerIntent
@@ -13,10 +12,9 @@ import java.util.*
  * High-speed, responsive voice input manager:
  * - Real-time streaming transcription with partial results.
  * - Auto-stops after 7 seconds if no speech is detected.
- * - Suppresses start/stop beep sounds using transient STREAM_MUSIC mute without breaking the microphone.
+ * - Does NOT touch or modify phone audio/volume settings in any way.
  * - Suppresses all error toasts and intrusive dialogs.
  * - Works reliably across all phones and Android versions using system SpeechRecognizer.
- * - Restarts recognition seamlessly across pauses in continuous mode.
  */
 class VoiceRecognizer(private val ctx: Context) {
 
@@ -30,10 +28,7 @@ class VoiceRecognizer(private val ctx: Context) {
     private var isContinuous = false
     private var currentLanguage: String = Locale.getDefault().language
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val audioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-
-    private var originalMusicVolume: Int? = null
-    private var isMuted = false
+    private var lastPartialDispatched = ""
 
     private val silenceTimeoutRunnable = Runnable {
         // Automatically stop after 7 seconds if no speech is detected
@@ -49,36 +44,20 @@ class VoiceRecognizer(private val ctx: Context) {
         }
     }
 
-    /**
-     * Mutes STREAM_MUSIC temporarily before startListening to silence the start beep.
-     * The volume is quickly restored in onReadyForSpeech or onBeginningOfSpeech.
-     */
-    private fun muteBeepSound() {
-        val am = audioManager ?: return
-        try {
-            if (!isMuted) {
-                originalMusicVolume = am.getStreamVolume(AudioManager.STREAM_MUSIC)
-                am.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
-                isMuted = true
-            }
-        } catch (_: Exception) {}
-    }
-
-    /**
-     * Restores STREAM_MUSIC volume back to original level.
-     */
-    private fun restoreBeepVolume() {
-        val am = audioManager ?: return
-        try {
-            if (isMuted) {
-                originalMusicVolume?.let { vol ->
-                    am.setStreamVolume(AudioManager.STREAM_MUSIC, vol, 0)
-                }
-                isMuted = false
-                originalMusicVolume = null
-            }
-        } catch (_: Exception) {
-            isMuted = false
+    private fun extractLivePartialText(results: android.os.Bundle?): String {
+        if (results == null) return ""
+        val stable = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?.firstOrNull()
+            ?.trim()
+            .orEmpty()
+        val unstable = results.getStringArrayList("android.speech.extra.UNSTABLE_TEXT")
+            ?.firstOrNull()
+            ?.trim()
+            .orEmpty()
+        return when {
+            stable.isNotEmpty() && unstable.isNotEmpty() -> "$stable $unstable"
+            stable.isNotEmpty() -> stable
+            else -> unstable
         }
     }
 
@@ -105,13 +84,10 @@ class VoiceRecognizer(private val ctx: Context) {
             recognizer?.setRecognitionListener(object : android.speech.RecognitionListener {
                 override fun onReadyForSpeech(params: android.os.Bundle?) {
                     resetSilenceTimer()
-                    // Restore music volume smoothly once recognizer is ready and beep has been silenced
-                    mainHandler.postDelayed({ restoreBeepVolume() }, 100L)
                 }
 
                 override fun onBeginningOfSpeech() {
                     resetSilenceTimer()
-                    restoreBeepVolume()
                 }
 
                 override fun onRmsChanged(rmsdB: Float) {
@@ -121,61 +97,44 @@ class VoiceRecognizer(private val ctx: Context) {
                 }
 
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {
-                    // Mute before stop beep triggers
-                    muteBeepSound()
-                }
+                override fun onEndOfSpeech() {}
 
                 override fun onPartialResults(results: android.os.Bundle?) {
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull()?.trim()
-                    if (!text.isNullOrEmpty()) {
+                    val liveText = extractLivePartialText(results)
+                    if (liveText.isNotEmpty() && liveText != lastPartialDispatched) {
+                        lastPartialDispatched = liveText
                         resetSilenceTimer()
-                        onPartialResult?.invoke(text)
+                        onPartialResult?.invoke(liveText)
                     }
                 }
 
                 override fun onResults(results: android.os.Bundle?) {
-                    restoreBeepVolume()
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull()?.trim()
+                    val text = matches?.firstOrNull()?.trim().takeUnless { it.isNullOrEmpty() }
+                        ?: lastPartialDispatched.takeIf { it.isNotBlank() }
+                    lastPartialDispatched = ""
                     if (!text.isNullOrEmpty()) {
-                        resetSilenceTimer()
                         onResult?.invoke(text)
                     }
 
-                    // Keep listening continuously across pauses
-                    if (isContinuous && isListening) {
-                        mainHandler.post {
-                            if (isContinuous && isListening) {
-                                restartRecognitionSession()
-                            }
-                        }
-                    } else {
-                        stopListening()
-                    }
+                    // Session already completed naturally; update state without calling cancel()
+                    // so we don't trigger a redundant close tone after completion.
+                    isListening = false
+                    isContinuous = false
+                    mainHandler.removeCallbacks(silenceTimeoutRunnable)
+                    onStateChanged?.invoke(false)
                 }
 
                 override fun onError(error: Int) {
-                    restoreBeepVolume()
                     if (!isListening && !isContinuous) return
 
-                    val canRetry = (error == SpeechRecognizer.ERROR_NO_MATCH ||
-                            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
-                            error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
-                            error == SpeechRecognizer.ERROR_CLIENT ||
-                            error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
-
-                    if (isContinuous && canRetry) {
-                        mainHandler.postDelayed({
-                            if (isContinuous && isListening) {
-                                restartRecognitionSession()
-                            }
-                        }, 100L)
-                        return
+                    // Flush any partial text that was already transcribed before the pause/timeout
+                    if (lastPartialDispatched.isNotBlank()) {
+                        val pending = lastPartialDispatched
+                        lastPartialDispatched = ""
+                        onResult?.invoke(pending)
                     }
 
-                    // On fatal or final error, stop cleanly
                     isListening = false
                     isContinuous = false
                     mainHandler.removeCallbacks(silenceTimeoutRunnable)
@@ -187,30 +146,6 @@ class VoiceRecognizer(private val ctx: Context) {
             })
         }
         return recognizer != null
-    }
-
-    private fun restartRecognitionSession() {
-        if (!isContinuous || !isListening) return
-        muteBeepSound()
-        try {
-            recognizer?.startListening(buildIntent())
-        } catch (_: Exception) {
-            try {
-                recognizer?.cancel()
-                recognizer?.startListening(buildIntent())
-            } catch (_: Exception) {
-                recreateRecognizer()
-                try {
-                    recognizer?.startListening(buildIntent())
-                } catch (_: Exception) {
-                    isListening = false
-                    isContinuous = false
-                    mainHandler.removeCallbacks(silenceTimeoutRunnable)
-                    restoreBeepVolume()
-                    onStateChanged?.invoke(false)
-                }
-            }
-        }
     }
 
     private fun recreateRecognizer() {
@@ -228,26 +163,25 @@ class VoiceRecognizer(private val ctx: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, currentLanguage)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra("android.speech.extra.DICTATION_MODE", true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
-            // Extra speech parameters for high responsiveness and fast real-time typing
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 50L)
+            // Keep session open across natural pauses while live partial results write words immediately
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 0L)
         }
     }
 
-    fun startListening(languageCode: String? = null, continuous: Boolean = true) {
+    fun startListening(languageCode: String? = null, continuous: Boolean = false) {
         currentLanguage = languageCode ?: Locale.getDefault().language
         isContinuous = continuous
         isListening = true
-
-        muteBeepSound()
+        lastPartialDispatched = ""
 
         if (!initRecognizer()) {
             isListening = false
             isContinuous = false
-            restoreBeepVolume()
             onStateChanged?.invoke(false)
             return
         }
@@ -266,24 +200,26 @@ class VoiceRecognizer(private val ctx: Context) {
                 isListening = false
                 isContinuous = false
                 mainHandler.removeCallbacks(silenceTimeoutRunnable)
-                restoreBeepVolume()
                 onStateChanged?.invoke(false)
             }
         }
     }
 
     fun stopListening() {
+        val wasListening = isListening
         isContinuous = false
         isListening = false
+        if (lastPartialDispatched.isNotBlank()) {
+            val pending = lastPartialDispatched
+            lastPartialDispatched = ""
+            onResult?.invoke(pending)
+        }
         mainHandler.removeCallbacks(silenceTimeoutRunnable)
-        muteBeepSound()
-        try {
-            recognizer?.cancel()
-        } catch (_: Exception) {}
-        try {
-            recognizer?.stopListening()
-        } catch (_: Exception) {}
-        mainHandler.postDelayed({ restoreBeepVolume() }, 300L)
+        if (wasListening) {
+            try {
+                recognizer?.cancel()
+            } catch (_: Exception) {}
+        }
         onStateChanged?.invoke(false)
     }
 
@@ -299,7 +235,6 @@ class VoiceRecognizer(private val ctx: Context) {
             recognizer?.destroy()
         } catch (_: Exception) {}
         recognizer = null
-        restoreBeepVolume()
         onStateChanged?.invoke(false)
     }
 

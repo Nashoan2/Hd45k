@@ -151,13 +151,26 @@ class Settings internal constructor(private val store: SettingsStore) {
         set(value) = store.putBoolean("reduced_motion", value)
 
     companion object {
-        internal fun encryptedPreferences(ctx: Context): SharedPreferences =
-            EncryptedSharedPreferences.create(
-                ctx,
-                "openswift_prefs",
-                MasterKey.Builder(ctx).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
+        private val lock = Any()
+        private var cachedDir: String? = null
+        private var cachedPrefs: SharedPreferences? = null
+
+        internal fun encryptedPreferences(ctx: Context): SharedPreferences {
+            val appCtx = ctx.applicationContext
+            val dir = appCtx.filesDir.absolutePath
+            synchronized(lock) {
+                if (cachedPrefs == null || cachedDir != dir) {
+                    cachedPrefs = EncryptedSharedPreferences.create(
+                        appCtx,
+                        "openswift_prefs",
+                        SecurePreferences.getOrCreateMasterKey(appCtx),
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                    )
+                    cachedDir = dir
+                }
+                return cachedPrefs!!
+            }
+        }
     }
 }

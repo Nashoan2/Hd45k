@@ -75,6 +75,35 @@ class KeyboardView(
 
     companion object {
         private val HIDDEN_HINT_TEXTS = setOf("é", "ý", "ú", "í", "ł", "á", "ß", "đ", "ž", "ç", "ñ")
+        private val TYPEFACE_NORMAL: android.graphics.Typeface =
+            android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+        private val TYPEFACE_BOLD: android.graphics.Typeface =
+            android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        private val NUMPAD_OP_KEYS = listOf(
+            Key("+", '+'.code),
+            Key("-", '-'.code),
+            Key("*", '*'.code),
+            Key("/", '/'.code),
+        )
+        private val NUMPAD_KEY_1 = Key("1", '1'.code)
+        private val NUMPAD_KEY_2 = Key("2", '2'.code)
+        private val NUMPAD_KEY_3 = Key("3", '3'.code)
+        private val NUMPAD_KEY_PERCENT = Key("%", '%'.code)
+        private val NUMPAD_KEY_4 = Key("4", '4'.code)
+        private val NUMPAD_KEY_5 = Key("5", '5'.code)
+        private val NUMPAD_KEY_6 = Key("6", '6'.code)
+        private val NUMPAD_KEY_SPACE = Key("␣", KC.SPACE)
+        private val NUMPAD_KEY_7 = Key("7", '7'.code)
+        private val NUMPAD_KEY_8 = Key("8", '8'.code)
+        private val NUMPAD_KEY_9 = Key("9", '9'.code)
+        private val NUMPAD_KEY_DELETE = Key("Delete", KC.DELETE, isModifier = true)
+        private val NUMPAD_KEY_ABC = Key("ABC", KC.ABC, isModifier = true)
+        private val NUMPAD_KEY_COMMA = Key(",", ','.code)
+        private val NUMPAD_KEY_SYMBOLS = Key("!?#", KC.SHIFT_SYMBOLS, isModifier = true)
+        private val NUMPAD_KEY_0 = Key("0", '0'.code)
+        private val NUMPAD_KEY_EQUALS = Key("=", '='.code)
+        private val NUMPAD_KEY_PERIOD = Key(".", '.'.code)
+        private val NUMPAD_KEY_ENTER = Key("Enter", KC.ENTER, isModifier = true)
     }
 
     private var onKeyListener: ((Int, String) -> Unit)? = null
@@ -185,6 +214,54 @@ class KeyboardView(
         color = theme.keyAccent
         style = Paint.Style.STROKE
         strokeWidth = 3f
+    }
+    private val toolbarBarRect = RectF()
+    private val toolbarBarBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF050B14.toInt()
+        style = Paint.Style.FILL
+    }
+    private val toolbarBarBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF00E5FF.toInt()
+        style = Paint.Style.STROKE
+    }
+    private val toolbarDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF00E5FF.toInt()
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val voiceActiveBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x33EF4444.toInt()
+        style = Paint.Style.FILL
+    }
+    private val numpadSpacePath = android.graphics.Path()
+    private val numpadSpacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private val popupCardBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF1C222B.toInt()
+        style = Paint.Style.FILL
+    }
+    private val popupCardBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+    }
+    private val popupNormalBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    private val popupPressedBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    private val popupCloseBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF3F1D22.toInt()
+        style = Paint.Style.FILL
+    }
+    private val popupBtnBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x22FFFFFF
+        style = Paint.Style.STROKE
+    }
+    private val popupTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        typeface = TYPEFACE_BOLD
     }
     private val clipboardIcon = AppCompatResources.getDrawable(ctx, R.drawable.ic_content_paste)
         ?.mutate()
@@ -298,9 +375,9 @@ class KeyboardView(
         // Mirror the drawing path exactly so the final row is never clipped.
         val keyHeightPx = keyHeightDp * density
         val numRows = if (effectiveLayout.id == "numpad") 4 else effectiveLayout.rows.size // includes number row if enabled
-        val rowSpacingPx = 2f * density
+        val rowSpacingPx = 4.2f * density
         val suggestionHeight = if (toolbarVisible || predictionEnabled) {
-            (4f * density) + (keyHeightPx * 0.82f) + (4f * density)
+            (2f * density) + (keyHeightPx * 0.56f) + (4f * density)
         } else {
             0f
         }
@@ -318,9 +395,9 @@ class KeyboardView(
         val h = height.toFloat()
         val density = resources.displayMetrics.density
         
-        // Calculate key height in pixels
+        // Calculate key height in pixels (contract: keyHeightPx * 0.82f)
         val keyHeightPx = keyHeightDp * density
-        val suggestionHeightPx = keyHeightPx * 0.82f
+        val suggestionHeightPx = keyHeightPx * 0.56f
         val rowSpacingPx = 4.2f * density
         val keyPadding = 2.8f * density
         val keyCornerRadius = 6f * density
@@ -352,7 +429,7 @@ class KeyboardView(
         toolbarBounds.clear()
 
         if (toolbarVisible || predictionEnabled) {
-            y = 4f * density // small top padding
+            y = 2f * density // compact top padding
             canvas.drawRect(0f, 0f, w, y + suggestionHeightPx, suggestionBgPaint)
 
             val showWordSuggestions = predictionEnabled && suggestions.isNotEmpty()
@@ -438,27 +515,19 @@ class KeyboardView(
                 canvas.drawText(labelText, labelCenter, labelY, suggestionPaint)
             } else {
                 // Toolbar icons enclosed in neon cyan rounded frame with vertical dividers matching screenshot
-                val barMarginH = 6f * density
-                val barTop = y + (2f * density)
-                val barHeight = suggestionHeightPx - (4f * density)
+                val barMarginH = 4f * density
+                val barTop = y + (1f * density)
+                val barHeight = suggestionHeightPx - (2f * density)
                 val barBottom = barTop + barHeight
-                val barRadius = 14f * density
-                val barRect = RectF(barMarginH, barTop, w - barMarginH, barBottom)
+                val barRadius = 12f * density
+                toolbarBarRect.set(barMarginH, barTop, w - barMarginH, barBottom)
 
                 // Fill toolbar background (dark midnight)
-                val barBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = 0xFF050B14.toInt()
-                    style = Paint.Style.FILL
-                }
-                canvas.drawRoundRect(barRect, barRadius, barRadius, barBgPaint)
+                canvas.drawRoundRect(toolbarBarRect, barRadius, barRadius, toolbarBarBgPaint)
 
                 // Neon cyan border outline
-                val barBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = 0xFF00E5FF.toInt()
-                    style = Paint.Style.STROKE
-                    strokeWidth = 2.4f * density
-                }
-                canvas.drawRoundRect(barRect, barRadius, barRadius, barBorderPaint)
+                toolbarBarBorderPaint.strokeWidth = 2.2f * density
+                canvas.drawRoundRect(toolbarBarRect, barRadius, barRadius, toolbarBarBorderPaint)
 
                 val icons = listOf(
                     "hub" to (hubMonogramIcon ?: audioWaveIcon ?: micIcon),
@@ -469,43 +538,51 @@ class KeyboardView(
                     "hide" to hideIcon,
                 )
                 val iconCount = icons.size
-                val slotWidth = barRect.width() / iconCount.toFloat()
+                val slotWidth = toolbarBarRect.width() / iconCount.toFloat()
 
                 // Divider lines between slots
-                val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = 0xFF00E5FF.toInt()
-                    strokeWidth = 1.4f * density
-                    strokeCap = Paint.Cap.ROUND
-                }
-                val dividerHalfH = barHeight * 0.28f
-                val dividerCenterY = barRect.centerY()
+                toolbarDividerPaint.strokeWidth = 1.5f * density
+                val dividerHalfH = barHeight * 0.26f
+                val dividerCenterY = toolbarBarRect.centerY()
                 for (i in 1 until iconCount) {
-                    val divX = barRect.left + (i * slotWidth)
-                    canvas.drawLine(divX, dividerCenterY - dividerHalfH, divX, dividerCenterY + dividerHalfH, dividerPaint)
+                    val divX = toolbarBarRect.left + (i * slotWidth)
+                    canvas.drawLine(divX, dividerCenterY - dividerHalfH, divX, dividerCenterY + dividerHalfH, toolbarDividerPaint)
                 }
 
                 icons.forEachIndexed { index, (action, drawable) ->
                     if (drawable != null) {
-                        val centerX = barRect.left + (index * slotWidth) + (slotWidth / 2f)
-                        val centerY = barRect.centerY()
+                        val centerX = toolbarBarRect.left + (index * slotWidth) + (slotWidth / 2f)
+                        val centerY = toolbarBarRect.centerY()
                         val iconW: Float
                         val iconH: Float
                         when (action) {
                             "hide" -> {
-                                iconW = 28f * density
-                                iconH = 18f * density
+                                iconW = barHeight * 0.76f
+                                iconH = barHeight * 0.68f
                             }
                             "cursor" -> {
-                                iconW = 24f * density
-                                iconH = 22f * density
+                                iconW = barHeight * 0.72f
+                                iconH = barHeight * 0.66f
+                            }
+                            "emoji" -> {
+                                iconW = barHeight * 0.58f
+                                iconH = barHeight * 0.58f
+                            }
+                            "voice" -> {
+                                iconW = barHeight * 0.58f
+                                iconH = barHeight * 0.58f
+                            }
+                            "clipboard" -> {
+                                iconW = barHeight * 0.56f
+                                iconH = barHeight * 0.56f
                             }
                             "hub" -> {
-                                iconW = 21f * density
-                                iconH = 21f * density
+                                iconW = barHeight * 0.55f
+                                iconH = barHeight * 0.55f
                             }
                             else -> {
-                                iconW = 22f * density
-                                iconH = 22f * density
+                                iconW = barHeight * 0.56f
+                                iconH = barHeight * 0.56f
                             }
                         }
 
@@ -515,18 +592,14 @@ class KeyboardView(
                         val iconBottom = (centerY + (iconH / 2f)).toInt()
 
                         val hitRect = Rect(
-                            (barRect.left + (index * slotWidth)).toInt(),
+                            (toolbarBarRect.left + (index * slotWidth)).toInt(),
                             barTop.toInt(),
-                            (barRect.left + ((index + 1) * slotWidth)).toInt(),
+                            (toolbarBarRect.left + ((index + 1) * slotWidth)).toInt(),
                             barBottom.toInt()
                         )
                         toolbarBounds[action] = hitRect
                         if (action == "voice" && isVoiceListening) {
-                            val activeBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                color = 0x33EF4444.toInt()
-                                style = Paint.Style.FILL
-                            }
-                            canvas.drawCircle(centerX, centerY, iconW * 0.85f, activeBgPaint)
+                            canvas.drawCircle(centerX, centerY, iconW * 0.85f, voiceActiveBgPaint)
                             drawable.setTint(0xFFEF4444.toInt())
                         } else {
                             drawable.setTint(0xFFFFFFFF.toInt())
@@ -641,14 +714,10 @@ class KeyboardView(
                     } else {
                         val isCyanKey = displayLabel == "AR" || displayLabel == "EN" || key.label == "AR" || key.label == "EN"
                         val isArabicChar = displayLabel.length == 1 && (displayLabel[0] in 'ء'..'ي' || displayLabel == "لا") || key.label == "لا"
-                        val isBoldKey = isCyanKey || isArabicChar || displayLabel == "123" || key.label == "123" || key.code in listOf(KC.ABC, KC.SYMBOLS, KC.SHIFT_SYMBOLS) || displayLabel == "ABC"
+                        val isBoldKey = isCyanKey || isArabicChar || displayLabel == "123" || key.label == "123" || key.code == KC.ABC || key.code == KC.SYMBOLS || key.code == KC.SHIFT_SYMBOLS || displayLabel == "ABC"
 
                         textPaint.color = if (isCyanKey) theme.keyAccent else theme.keyText
-                        textPaint.typeface = if (isBoldKey) {
-                            android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                        } else {
-                            android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
-                        }
+                        textPaint.typeface = if (isBoldKey) TYPEFACE_BOLD else TYPEFACE_NORMAL
 
                         val isArabicLayout = effectiveLayout.id.startsWith("arabic") || isArabicChar
                         val rawHint = key.popup.firstOrNull()
@@ -672,7 +741,7 @@ class KeyboardView(
                             canvas.drawText(displayLabel, textX, mainY, textPaint)
                         }
                         textPaint.color = theme.keyText
-                        textPaint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+                        textPaint.typeface = TYPEFACE_NORMAL
                     }
                     textPaint.textSize = defaultTextSize
 
@@ -685,40 +754,45 @@ class KeyboardView(
         // Draw glide trail with fade gradient (skip if reduced motion enabled)
         if (!settings.reducedMotion && glideTrail.isNotEmpty()) {
             val now = System.currentTimeMillis()
-            for (i in 0 until glideTrail.size - 1) {
-                val p1 = glideTrail[i]
-                val p2 = glideTrail[i + 1]
-                val age = (now - p1.time).toFloat().coerceAtLeast(0f)
-                val progress = (age / trailFadeMs).coerceIn(0f, 1f)
-                val alpha = ((1f - progress) * 255).toInt()
-                trailPaint.color = theme.gestureTrail
-                trailPaint.alpha = alpha
-                canvas.drawLine(p1.x, p1.y, p2.x, p2.y, trailPaint)
+            while (glideTrail.isNotEmpty() && now - glideTrail.first().time >= trailFadeMs) {
+                glideTrail.removeAt(0)
             }
+            if (glideTrail.size < 2 && !isGliding) {
+                glideTrail.clear()
+            } else {
+                for (i in 0 until glideTrail.size - 1) {
+                    val p1 = glideTrail[i]
+                    val p2 = glideTrail[i + 1]
+                    val age = (now - p1.time).toFloat().coerceAtLeast(0f)
+                    val progress = (age / trailFadeMs).coerceIn(0f, 1f)
+                    val alpha = ((1f - progress) * 255).toInt()
+                    trailPaint.color = theme.gestureTrail
+                    trailPaint.alpha = alpha
+                    canvas.drawLine(p1.x, p1.y, p2.x, p2.y, trailPaint)
+                }
+            }
+        } else if (settings.reducedMotion && glideTrail.isNotEmpty()) {
+            glideTrail.clear()
         }
 
         // Draw ripples (skip if reduced motion enabled)
         if (!settings.reducedMotion) {
             val now = System.currentTimeMillis()
-            val expiredIndices = mutableListOf<Int>()
-            for ((idx, ripple) in ripples.withIndex()) {
+            var idx = ripples.size - 1
+            while (idx >= 0) {
+                val ripple = ripples[idx]
                 val elapsed = now - ripple.startTime
                 val progress = (elapsed.toFloat() / rippleAnimDuration).coerceIn(0f, 1f)
-                
                 if (progress >= 1f) {
-                    expiredIndices.add(idx)
-                    continue
+                    ripples.removeAt(idx)
+                } else {
+                    val radius = (2f + (48f * progress)) * density
+                    val alpha = ((1f - progress) * 255).toInt()
+                    ripplePaint.color = theme.keyAccent
+                    ripplePaint.alpha = alpha
+                    canvas.drawCircle(ripple.x, ripple.y, radius, ripplePaint)
                 }
-                
-                val radius = (2f + (48f * progress)) * density
-                val alpha = ((1f - progress) * 255).toInt()
-                ripplePaint.color = theme.keyAccent
-                ripplePaint.alpha = alpha
-                canvas.drawCircle(ripple.x, ripple.y, radius, ripplePaint)
-            }
-            
-            for (idx in expiredIndices.reversed()) {
-                ripples.removeAt(idx)
+                idx--
             }
         } else {
             ripples.clear()
@@ -1153,9 +1227,9 @@ class KeyboardView(
         val density = resources.displayMetrics.density
         val keyHeightPx = keyHeightDp * density
         val numRows = if (effectiveLayout.id == "numpad") 4 else effectiveLayout.rows.size
-        val rowSpacingPx = 2f * density
+        val rowSpacingPx = 4.2f * density
         val suggestionHeight = if (toolbarVisible || predictionEnabled) {
-            (4f * density) + (keyHeightPx * 0.82f) + (4f * density)
+            (2f * density) + (keyHeightPx * 0.56f) + (4f * density)
         } else {
             0f
         }
@@ -1267,20 +1341,14 @@ class KeyboardView(
                     val bBottom = centerY + bracketH / 2f
                     val bTop = centerY - bracketH / 2f
 
-                    val spacePath = android.graphics.Path().apply {
-                        moveTo(bLeft, bTop)
-                        lineTo(bLeft, bBottom)
-                        lineTo(bRight, bBottom)
-                        lineTo(bRight, bTop)
-                    }
-                    val spacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = customTextColor ?: theme.keyText
-                        style = Paint.Style.STROKE
-                        strokeWidth = 2.4f * density
-                        strokeCap = Paint.Cap.ROUND
-                        strokeJoin = Paint.Join.ROUND
-                    }
-                    canvas.drawPath(spacePath, spacePaint)
+                    numpadSpacePath.reset()
+                    numpadSpacePath.moveTo(bLeft, bTop)
+                    numpadSpacePath.lineTo(bLeft, bBottom)
+                    numpadSpacePath.lineTo(bRight, bBottom)
+                    numpadSpacePath.lineTo(bRight, bTop)
+                    numpadSpacePaint.color = customTextColor ?: theme.keyText
+                    numpadSpacePaint.strokeWidth = 2.4f * density
+                    canvas.drawPath(numpadSpacePath, numpadSpacePaint)
                 }
                 else -> {
                     textPaint.color = customTextColor ?: theme.keyText
@@ -1292,17 +1360,11 @@ class KeyboardView(
         }
 
         // 1. Column 1: 4 operator keys (+, -, *, /) spanning rows123Height
-        val opKeys = listOf(
-            Key("+", '+'.code),
-            Key("-", '-'.code),
-            Key("*", '*'.code),
-            Key("/", '/'.code),
-        )
         val opHeight = (rows123Height - 3f * rowSpacingPx) / 4f
         for (i in 0 until 4) {
             val top = yStart + i * (opHeight + rowSpacingPx)
             val bottom = top + opHeight
-            drawKey(opKeys[i], xCol1, top, xCol2, bottom, fontSizeRatio = 0.42f)
+            drawKey(NUMPAD_OP_KEYS[i], xCol1, top, xCol2, bottom, fontSizeRatio = 0.42f)
         }
 
         // 2. Rows 1, 2, 3: Numbers and side keys
@@ -1311,46 +1373,46 @@ class KeyboardView(
         val row3Y = yStart + 2f * (keyHeightPx + rowSpacingPx)
 
         // Row 1: 1, 2, 3, %
-        drawKey(Key("1", '1'.code), xCol2, row1Y, xCol3, row1Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("2", '2'.code), xCol3, row1Y, xCol4, row1Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("3", '3'.code), xCol4, row1Y, xCol5, row1Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("%", '%'.code), xCol5, row1Y, w, row1Y + keyHeightPx, fontSizeRatio = 0.42f)
+        drawKey(NUMPAD_KEY_1, xCol2, row1Y, xCol3, row1Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_2, xCol3, row1Y, xCol4, row1Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_3, xCol4, row1Y, xCol5, row1Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_PERCENT, xCol5, row1Y, w, row1Y + keyHeightPx, fontSizeRatio = 0.42f)
 
         // Row 2: 4, 5, 6, ␣
-        drawKey(Key("4", '4'.code), xCol2, row2Y, xCol3, row2Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("5", '5'.code), xCol3, row2Y, xCol4, row2Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("6", '6'.code), xCol4, row2Y, xCol5, row2Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("␣", KC.SPACE), xCol5, row2Y, w, row2Y + keyHeightPx)
+        drawKey(NUMPAD_KEY_4, xCol2, row2Y, xCol3, row2Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_5, xCol3, row2Y, xCol4, row2Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_6, xCol4, row2Y, xCol5, row2Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_SPACE, xCol5, row2Y, w, row2Y + keyHeightPx)
 
         // Row 3: 7, 8, 9, Delete
-        drawKey(Key("7", '7'.code), xCol2, row3Y, xCol3, row3Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("8", '8'.code), xCol3, row3Y, xCol4, row3Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("9", '9'.code), xCol4, row3Y, xCol5, row3Y + keyHeightPx, fontSizeRatio = 0.52f)
-        drawKey(Key("Delete", KC.DELETE, isModifier = true), xCol5, row3Y, w, row3Y + keyHeightPx)
+        drawKey(NUMPAD_KEY_7, xCol2, row3Y, xCol3, row3Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_8, xCol3, row3Y, xCol4, row3Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_9, xCol4, row3Y, xCol5, row3Y + keyHeightPx, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_DELETE, xCol5, row3Y, w, row3Y + keyHeightPx)
 
         // 3. Row 4 (Bottom Row): ABC, comma, !?#, 0, =, ., Enter
         val row4Y = yStart + rows123Height + rowSpacingPx
         val row4Bottom = row4Y + keyHeightPx
 
         drawKey(
-            Key("ABC", KC.ABC, isModifier = true),
+            NUMPAD_KEY_ABC,
             xCol1, row4Y, xCol2, row4Bottom,
             fontSizeRatio = 0.34f,
             customRadius = keyHeightPx * 0.45f
         )
 
         val commaWidth = col2Width * (0.9f / 2.0f)
-        drawKey(Key(",", ','.code), xCol2, row4Y, xCol2 + commaWidth, row4Bottom, fontSizeRatio = 0.48f)
-        drawKey(Key("!?#", KC.SHIFT_SYMBOLS, isModifier = true), xCol2 + commaWidth, row4Y, xCol3, row4Bottom, fontSizeRatio = 0.30f)
+        drawKey(NUMPAD_KEY_COMMA, xCol2, row4Y, xCol2 + commaWidth, row4Bottom, fontSizeRatio = 0.48f)
+        drawKey(NUMPAD_KEY_SYMBOLS, xCol2 + commaWidth, row4Y, xCol3, row4Bottom, fontSizeRatio = 0.30f)
 
-        drawKey(Key("0", '0'.code), xCol3, row4Y, xCol4, row4Bottom, fontSizeRatio = 0.52f)
+        drawKey(NUMPAD_KEY_0, xCol3, row4Y, xCol4, row4Bottom, fontSizeRatio = 0.52f)
 
         val equalsWidth = col4Width * (1.1f / 2.0f)
-        drawKey(Key("=", '='.code), xCol4, row4Y, xCol4 + equalsWidth, row4Bottom, fontSizeRatio = 0.44f)
-        drawKey(Key(".", '.'.code), xCol4 + equalsWidth, row4Y, xCol5, row4Bottom, fontSizeRatio = 0.48f)
+        drawKey(NUMPAD_KEY_EQUALS, xCol4, row4Y, xCol4 + equalsWidth, row4Bottom, fontSizeRatio = 0.44f)
+        drawKey(NUMPAD_KEY_PERIOD, xCol4 + equalsWidth, row4Y, xCol5, row4Bottom, fontSizeRatio = 0.48f)
 
         drawKey(
-            Key("Enter", KC.ENTER, isModifier = true),
+            NUMPAD_KEY_ENTER,
             xCol5, row4Y, w, row4Bottom,
             customBgColor = 0xFFA8C7FA.toInt(),
             customTextColor = 0xFF041E49.toInt(),
@@ -1418,43 +1480,18 @@ class KeyboardView(
 
         // Card background
         val cornerRadius = 14f * density
-        val cardBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF1C222B.toInt()
-            style = Paint.Style.FILL
-        }
-        val cardBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = theme.keyAccent
-            alpha = 110
-            style = Paint.Style.STROKE
-            strokeWidth = 1.5f * density
-        }
-        canvas.drawRoundRect(lamAlefPopupCardRect, cornerRadius, cornerRadius, cardBgPaint)
-        canvas.drawRoundRect(lamAlefPopupCardRect, cornerRadius, cornerRadius, cardBorderPaint)
+        popupCardBorderPaint.color = theme.keyAccent
+        popupCardBorderPaint.alpha = 110
+        popupCardBorderPaint.strokeWidth = 1.5f * density
+        canvas.drawRoundRect(lamAlefPopupCardRect, cornerRadius, cornerRadius, popupCardBgPaint)
+        canvas.drawRoundRect(lamAlefPopupCardRect, cornerRadius, cornerRadius, popupCardBorderPaint)
 
         val availW = cardW - (padH * 2f)
         val btnRadius = 6f * density
 
-        val normalBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = theme.keyBackground
-            style = Paint.Style.FILL
-        }
-        val pressedBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = theme.keyAccent
-            style = Paint.Style.FILL
-        }
-        val closeBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF3F1D22.toInt()
-            style = Paint.Style.FILL
-        }
-        val btnBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x22FFFFFF
-            style = Paint.Style.STROKE
-            strokeWidth = 1f * density
-        }
-        val pTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textAlign = Paint.Align.CENTER
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-        }
+        popupNormalBtnPaint.color = theme.keyBackground
+        popupPressedBtnPaint.color = theme.keyAccent
+        popupBtnBorderPaint.strokeWidth = 1f * density
 
         // Draw Row 1: 6 buttons
         var curY = cardTop + padV
@@ -1466,13 +1503,13 @@ class KeyboardView(
             lamAlefPopupButtons[label] = rect
 
             val isPressed = pressedPopupButton == label
-            canvas.drawRoundRect(rect, btnRadius, btnRadius, if (isPressed) pressedBtnPaint else normalBtnPaint)
-            canvas.drawRoundRect(rect, btnRadius, btnRadius, btnBorderPaint)
+            canvas.drawRoundRect(rect, btnRadius, btnRadius, if (isPressed) popupPressedBtnPaint else popupNormalBtnPaint)
+            canvas.drawRoundRect(rect, btnRadius, btnRadius, popupBtnBorderPaint)
 
-            pTextPaint.textSize = 21f * density
-            pTextPaint.color = if (isPressed) 0xFF000000.toInt() else if (label == "لا") theme.keyAccent else theme.keyText
-            val textY = rect.centerY() - ((pTextPaint.ascent() + pTextPaint.descent()) / 2f)
-            canvas.drawText(label, rect.centerX(), textY, pTextPaint)
+            popupTextPaint.textSize = 21f * density
+            popupTextPaint.color = if (isPressed) 0xFF000000.toInt() else if (label == "لا") theme.keyAccent else theme.keyText
+            val textY = rect.centerY() - ((popupTextPaint.ascent() + popupTextPaint.descent()) / 2f)
+            canvas.drawText(label, rect.centerX(), textY, popupTextPaint)
 
             curX1 += btnW1 + gap1
         }
@@ -1487,13 +1524,13 @@ class KeyboardView(
             lamAlefPopupButtons[label] = rect
 
             val isPressed = pressedPopupButton == label
-            canvas.drawRoundRect(rect, btnRadius, btnRadius, if (isPressed) pressedBtnPaint else normalBtnPaint)
-            canvas.drawRoundRect(rect, btnRadius, btnRadius, btnBorderPaint)
+            canvas.drawRoundRect(rect, btnRadius, btnRadius, if (isPressed) popupPressedBtnPaint else popupNormalBtnPaint)
+            canvas.drawRoundRect(rect, btnRadius, btnRadius, popupBtnBorderPaint)
 
-            pTextPaint.textSize = 17f * density
-            pTextPaint.color = if (isPressed) 0xFF000000.toInt() else theme.keyText
-            val textY = rect.centerY() - ((pTextPaint.ascent() + pTextPaint.descent()) / 2f)
-            canvas.drawText(label, rect.centerX(), textY, pTextPaint)
+            popupTextPaint.textSize = 17f * density
+            popupTextPaint.color = if (isPressed) 0xFF000000.toInt() else theme.keyText
+            val textY = rect.centerY() - ((popupTextPaint.ascent() + popupTextPaint.descent()) / 2f)
+            canvas.drawText(label, rect.centerX(), textY, popupTextPaint)
 
             curX2 += btnW2 + gap2
         }
@@ -1510,17 +1547,17 @@ class KeyboardView(
             val isPressed = pressedPopupButton == label
             val isClose = label == "✕"
             val bgPaint = when {
-                isPressed -> pressedBtnPaint
-                isClose -> closeBtnPaint
-                else -> normalBtnPaint
+                isPressed -> popupPressedBtnPaint
+                isClose -> popupCloseBtnPaint
+                else -> popupNormalBtnPaint
             }
             canvas.drawRoundRect(rect, btnRadius, btnRadius, bgPaint)
-            canvas.drawRoundRect(rect, btnRadius, btnRadius, btnBorderPaint)
+            canvas.drawRoundRect(rect, btnRadius, btnRadius, popupBtnBorderPaint)
 
-            pTextPaint.textSize = if (isClose) 18f * density else 22f * density
-            pTextPaint.color = if (isPressed) 0xFF000000.toInt() else if (isClose) 0xFFEF4444.toInt() else theme.keyText
-            val textY = rect.centerY() - ((pTextPaint.ascent() + pTextPaint.descent()) / 2f)
-            canvas.drawText(label, rect.centerX(), textY, pTextPaint)
+            popupTextPaint.textSize = if (isClose) 18f * density else 22f * density
+            popupTextPaint.color = if (isPressed) 0xFF000000.toInt() else if (isClose) 0xFFEF4444.toInt() else theme.keyText
+            val textY = rect.centerY() - ((popupTextPaint.ascent() + popupTextPaint.descent()) / 2f)
+            canvas.drawText(label, rect.centerX(), textY, popupTextPaint)
 
             curX3 += btnW3 + gap3
         }

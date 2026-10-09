@@ -39,6 +39,7 @@ class ClipboardView @JvmOverloads constructor(
     var onReturnToKeyboard: (() -> Unit)? = null
 
     var clipboard = ClipboardHistory(ctx)
+    var settings: com.openswift.keyboard.data.Settings? = null
 
     private val density = resources.displayMetrics.density
     private val touchSlop = ViewConfiguration.get(ctx).scaledTouchSlop
@@ -157,6 +158,10 @@ class ClipboardView @JvmOverloads constructor(
     private val dialogDeleteBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         color = 0xFF5C1C24.toInt()
+    }
+    private val dialogLockedBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = 0xFF2A2E37.toInt()
     }
     private val dialogTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
@@ -574,10 +579,6 @@ class ClipboardView @JvmOverloads constructor(
         val b3Top = b2Top + btnHeight + (8f * density)
         dialogDeleteBounds.set(dLeft + btnMarginH, b3Top, dLeft + btnMarginH + btnWidth, b3Top + btnHeight)
         if (isPinned) {
-            val dialogLockedBtnPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.FILL
-                color = 0xFF2A2E37.toInt()
-            }
             canvas.drawRoundRect(dialogDeleteBounds, 8f * density, 8f * density, dialogLockedBtnPaint)
             dialogTextPaint.color = 0xFF9CA3AF.toInt()
             val b3TextY = dialogDeleteBounds.centerY() - ((dialogTextPaint.ascent() + dialogTextPaint.descent()) / 2f)
@@ -635,7 +636,8 @@ class ClipboardView @JvmOverloads constructor(
 
     private fun vibrateFeedback() {
         try {
-            if (!com.openswift.keyboard.data.Settings(context).hapticFeedback) return
+            val activeSettings = settings ?: com.openswift.keyboard.data.Settings(context).also { settings = it }
+            if (!activeSettings.hapticFeedback) return
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 vibrator?.vibrate(VibrationEffect.createOneShot(35, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {

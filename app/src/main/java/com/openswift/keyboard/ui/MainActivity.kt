@@ -583,12 +583,12 @@ fun EnhancedSettingsUI(
                             "qwerty" to "الإنجليزية (QWERTY)",
                         ) + customLayoutOptions
                     ),
-                    "الارتفاع" to emptyList()
                 ),
                 settings,
                 textColor,
                 accentColor
             )
+            ToggleOption("إظهار صف الأرقام العلوي", settings.numberRow, textColor) { settings.numberRow = it }
         }
 
         // Typing & Accuracy

@@ -72,6 +72,12 @@ class EmojiView @JvmOverloads constructor(
     private val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
     }
+    private val shortcutPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+    }
+    private val starDrawBounds = RectF()
+    private var cachedEntriesKey: String? = null
+    private var cachedEntriesList: List<EmojiEntry> = emptyList()
 
     var explicitHeightPx: Int = 0
         set(value) {
@@ -204,10 +210,7 @@ class EmojiView @JvmOverloads constructor(
         val emojiSize = minOf(itemWidth * 0.76f, 22f * density)
         val textPaintY = pillRect.centerY() + (emojiSize * 0.36f)
 
-        val shortcutPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = emojiSize
-            textAlign = Paint.Align.CENTER
-        }
+        shortcutPaint.textSize = emojiSize
 
         items.forEachIndexed { index, emoji ->
             val left = pillRect.left + (index * itemWidth)
@@ -279,13 +282,13 @@ class EmojiView @JvmOverloads constructor(
             emojiBounds[entry.value] = rect
             canvas.drawText(entry.value, x + cell / 2, y + cell * 0.68f, emojiPaint)
             if (favorites.contains(entry.value)) {
-                val starBounds = RectF(
+                starDrawBounds.set(
                     x + cell - 22f * density,
                     y + 4f * density,
                     x + cell - 6f * density,
                     y + 20f * density,
                 )
-                drawIcon(canvas, starIcon, starBounds, 16f)
+                drawIcon(canvas, starIcon, starDrawBounds, 16f)
             }
         }
     }
@@ -374,13 +377,21 @@ class EmojiView @JvmOverloads constructor(
     }
 
     private fun currentEntries(): List<EmojiEntry> {
-        if (query.isNotBlank()) return EmojiCatalog.search(query)
-        return when (selectedCategory) {
-            EmojiCatalog.SHORTCUTS -> EmojiCatalog.shortcuts
-            EmojiCatalog.RECENTS -> recents.mapNotNull { EmojiCatalog.byValue[it] }
-            EmojiCatalog.FAVORITES -> favorites.mapNotNull { EmojiCatalog.byValue[it] }
-            else -> EmojiCatalog.entries.filter { it.category == selectedCategory }
+        val key = if (query.isNotBlank()) "q:$query" else "c:$selectedCategory:${recents.size}:${favorites.size}"
+        if (cachedEntriesKey == key) return cachedEntriesList
+        val computed = if (query.isNotBlank()) {
+            EmojiCatalog.search(query)
+        } else {
+            when (selectedCategory) {
+                EmojiCatalog.SHORTCUTS -> EmojiCatalog.shortcuts
+                EmojiCatalog.RECENTS -> recents.mapNotNull { EmojiCatalog.byValue[it] }
+                EmojiCatalog.FAVORITES -> favorites.mapNotNull { EmojiCatalog.byValue[it] }
+                else -> EmojiCatalog.entries.filter { it.category == selectedCategory }
+            }
         }
+        cachedEntriesKey = key
+        cachedEntriesList = computed
+        return computed
     }
 
     private fun maxScroll(): Float {
@@ -397,16 +408,19 @@ class EmojiView @JvmOverloads constructor(
         recents.remove(emoji)
         recents.add(0, emoji)
         while (recents.size > MAX_STORED) recents.removeAt(recents.lastIndex)
+        cachedEntriesKey = null
         saveList("recents", recents)
     }
 
     private fun toggleFavorite(emoji: String) {
         if (favorites.remove(emoji)) {
+            cachedEntriesKey = null
             saveList("favorites", favorites)
             return
         }
         favorites.add(0, emoji)
         while (favorites.size > MAX_STORED) favorites.removeAt(favorites.lastIndex)
+        cachedEntriesKey = null
         saveList("favorites", favorites)
     }
 

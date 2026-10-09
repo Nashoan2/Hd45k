@@ -41,9 +41,9 @@ fun KeyboardPreview(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(34.dp)
-                .background(Color(0xFF050B14), RoundedCornerShape(12.dp))
-                .border(2.dp, accentColor, RoundedCornerShape(12.dp)),
+                .height(26.dp)
+                .background(Color(0xFF050B14), RoundedCornerShape(9.dp))
+                .border(1.8.dp, accentColor, RoundedCornerShape(9.dp)),
             contentAlignment = Alignment.Center
         ) {
             Row(
@@ -57,57 +57,57 @@ fun KeyboardPreview(
                         painter = painterResource(R.drawable.ic_hub_monogram),
                         contentDescription = "Hub",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
-                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                Box(modifier = Modifier.width(1.2.dp).height(14.dp).background(accentColor))
                 // 2. Emoji
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(R.drawable.ic_sentiment_satisfied),
                         contentDescription = "Emoji",
                         tint = Color.White,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
-                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                Box(modifier = Modifier.width(1.2.dp).height(14.dp).background(accentColor))
                 // 3. Mic
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(R.drawable.ic_mic),
                         contentDescription = "Voice",
                         tint = Color.White,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
-                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                Box(modifier = Modifier.width(1.2.dp).height(14.dp).background(accentColor))
                 // 4. Cursor
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(R.drawable.ic_text_cursor),
                         contentDescription = "Cursor",
                         tint = Color.White,
-                        modifier = Modifier.size(19.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                Box(modifier = Modifier.width(1.2.dp).height(14.dp).background(accentColor))
                 // 5. Clipboard
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(R.drawable.ic_content_paste),
                         contentDescription = "Clipboard",
                         tint = Color.White,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
-                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                Box(modifier = Modifier.width(1.2.dp).height(14.dp).background(accentColor))
                 // 6. Hide
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(R.drawable.ic_keyboard_arrow_down),
                         contentDescription = "Hide",
                         tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }

@@ -191,6 +191,7 @@ class OpenSwiftIME : InputMethodService() {
         if (inputView == null) {
             val view = ClipboardView(this)
             view.clipboard = this.clipboard
+            view.settings = this.settings
             view.onItemSelected = { item ->
                 currentInputConnection?.commitText(item, 1)
                 clearInputBuffers()
@@ -274,8 +275,10 @@ class OpenSwiftIME : InputMethodService() {
             keyboardView.updateTheme(currentTheme)
             keyboardView.updateLayout(resolveLayout(settings.layout))
         }
+        if (::keyboardInputView.isInitialized) {
+            keyboardInputView.setBackgroundColor(currentTheme.background)
+        }
         applyInputProfile()
-        clipboard.onSystemClipChanged()
         clipboard.captureSystem(
             ctx = this,
             enabled = true,
@@ -610,7 +613,6 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private fun showClipboardView() {
-        clipboard.onSystemClipChanged()
         clipboard.captureSystem(this, enabled = true, privateField = privacyModeActive)
         clipboardMode = true
         val inputView = getOrCreateClipboardInputView()
@@ -874,20 +876,30 @@ class OpenSwiftIME : InputMethodService() {
             voiceRecognizer?.apply {
                 onPartialResult = { partialText ->
                     val ic = currentInputConnection
-                    if (partialText.isNotBlank()) {
-                        ic?.setComposingText(partialText, 1)
-                    } else {
-                        ic?.setComposingText("", 1)
+                    if (ic != null) {
+                        ic.beginBatchEdit()
+                        if (partialText.isNotBlank()) {
+                            ic.setComposingText(partialText, 1)
+                        } else {
+                            ic.setComposingText("", 1)
+                        }
+                        ic.endBatchEdit()
                     }
                 }
                 onResult = { finalText ->
                     val ic = currentInputConnection
-                    if (finalText.isNotBlank()) {
-                        ic?.commitText("$finalText ", 1)
-                        updateSuggestions()
-                    } else {
-                        ic?.setComposingText("", 1)
-                        ic?.finishComposingText()
+                    if (ic != null) {
+                        ic.beginBatchEdit()
+                        if (finalText.isNotBlank()) {
+                            ic.commitText("$finalText ", 1)
+                        } else {
+                            ic.setComposingText("", 1)
+                            ic.finishComposingText()
+                        }
+                        ic.endBatchEdit()
+                        if (finalText.isNotBlank()) {
+                            updateSuggestions()
+                        }
                     }
                 }
                 onStateChanged = { listening ->
@@ -915,7 +927,7 @@ class OpenSwiftIME : InputMethodService() {
                 keyboardView.isVoiceListening = true
                 keyboardView.invalidate()
             }
-            voiceRecognizer?.startListening(lang, continuous = true)
+            voiceRecognizer?.startListening(lang, continuous = false)
         } catch (_: Exception) {
             currentInputConnection?.finishComposingText()
             isListeningVoice = false
@@ -939,12 +951,23 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "theme" || key == "layout" || key == "key_height_dp") {
+        if (
+            key == "theme" ||
+            key == "layout" ||
+            key == "language" ||
+            key == "numrow" ||
+            key == "keyHeight" ||
+            key == "key_height_dp" ||
+            key == "glide"
+        ) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (::keyboardView.isInitialized) {
                     val resolvedTheme = themeEditor.resolve(settings.theme)
                     keyboardView.updateTheme(resolvedTheme)
-                    keyboardView.updateLayout(resolveLayout(settings.layout))
+                    if (::keyboardInputView.isInitialized) {
+                        keyboardInputView.setBackgroundColor(resolvedTheme.background)
+                    }
+                    refreshLanguageState()
                     applyInputProfile()
                     keyboardView.invalidate()
                 }

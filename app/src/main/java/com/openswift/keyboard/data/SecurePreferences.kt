@@ -8,11 +8,29 @@ import androidx.security.crypto.MasterKey
 /** Opens encrypted preference stores and migrates matching legacy plaintext entries once. */
 object SecurePreferences {
     private const val SECURE_PREFIX = "openswift_secure_"
+    private val lock = Any()
+    private var cachedMasterKeyDir: String? = null
+    private var cachedMasterKey: MasterKey? = null
+    private val cachedStores = HashMap<String, SharedPreferences>()
 
     internal data class MigrationPlan(
         val entriesToWrite: Map<String, Any>,
         val legacyKeysToRemove: Set<String>
     )
+
+    internal fun getOrCreateMasterKey(appContext: Context): MasterKey {
+        val dirKey = appContext.filesDir.absolutePath
+        synchronized(lock) {
+            if (cachedMasterKey == null || cachedMasterKeyDir != dirKey) {
+                cachedMasterKey = MasterKey.Builder(appContext)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                cachedMasterKeyDir = dirKey
+                cachedStores.clear()
+            }
+            return cachedMasterKey!!
+        }
+    }
 
     fun open(
         context: Context,
@@ -24,17 +42,22 @@ object SecurePreferences {
         migrateKey: (String) -> Boolean = { true }
     ): SharedPreferences {
         val appContext = context.applicationContext
-        val masterKey = MasterKey.Builder(appContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        val encrypted = EncryptedSharedPreferences.create(
-            appContext,
-            SECURE_PREFIX + storeName,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-        migrateLegacy(legacyPreferences, encrypted, migrateKey)
+        val cacheKey = "${appContext.filesDir.absolutePath}::$storeName"
+        val encrypted = synchronized(lock) {
+            cachedStores.getOrPut(cacheKey) {
+                val masterKey = getOrCreateMasterKey(appContext)
+                EncryptedSharedPreferences.create(
+                    appContext,
+                    SECURE_PREFIX + storeName,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            }
+        }
+        if (legacyPreferences.all.isNotEmpty()) {
+            migrateLegacy(legacyPreferences, encrypted, migrateKey)
+        }
         return encrypted
     }
 
