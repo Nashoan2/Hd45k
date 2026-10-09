@@ -37,45 +37,80 @@ fun KeyboardPreview(
             .padding(6.dp),
         verticalArrangement = Arrangement.spacedBy(keySpacing)
     ) {
-        // Top Toolbar Strip matching the screenshot
-        Row(
+        // Top Toolbar Strip matching the screenshot exactly
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(32.dp)
-                .padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .height(34.dp)
+                .background(Color(0xFF050B14), RoundedCornerShape(12.dp))
+                .border(2.dp, accentColor, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_audio_wave),
-                contentDescription = "Wave",
-                tint = subtleColor,
-                modifier = Modifier.size(17.dp)
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_sentiment_satisfied),
-                contentDescription = "Emoji",
-                tint = subtleColor,
-                modifier = Modifier.size(17.dp)
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_text_cursor),
-                contentDescription = "Cursor",
-                tint = subtleColor,
-                modifier = Modifier.size(21.dp)
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_content_paste),
-                contentDescription = "Clipboard",
-                tint = subtleColor,
-                modifier = Modifier.size(17.dp)
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_keyboard_arrow_down),
-                contentDescription = "Hide",
-                tint = subtleColor,
-                modifier = Modifier.size(21.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 1. Hub
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_hub_monogram),
+                        contentDescription = "Hub",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                // 2. Emoji
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_sentiment_satisfied),
+                        contentDescription = "Emoji",
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                // 3. Mic
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_mic),
+                        contentDescription = "Voice",
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                // 4. Cursor
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_text_cursor),
+                        contentDescription = "Cursor",
+                        tint = Color.White,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                // 5. Clipboard
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_content_paste),
+                        contentDescription = "Clipboard",
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+                Box(modifier = Modifier.width(1.2.dp).height(18.dp).background(accentColor))
+                // 6. Hide
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_keyboard_arrow_down),
+                        contentDescription = "Hide",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
         }
 
         when (layoutId) {
@@ -281,8 +316,8 @@ fun PreviewSpaceKey(
     Box(
         modifier = modifier
             .height(height)
-            .background(bgColor, RoundedCornerShape(6.dp))
-            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(6.dp)),
+            .background(bgColor, RoundedCornerShape(11.dp))
+            .border(0.5.dp, Color(0xFF2A5078).copy(alpha = 0.4f), RoundedCornerShape(11.dp)),
         contentAlignment = Alignment.Center
     ) {}
 }
@@ -298,7 +333,7 @@ fun PreviewKey(
     hint: String? = null,
     isPill: Boolean = false
 ) {
-    val cornerRadius = if (isPill) 20.dp else 6.dp
+    val cornerRadius = if (isPill) 20.dp else 11.dp
     Box(
         modifier = modifier
             .height(height)
@@ -306,7 +341,7 @@ fun PreviewKey(
                 bgColor,
                 RoundedCornerShape(cornerRadius)
             )
-            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(cornerRadius)),
+            .border(0.5.dp, Color(0xFF2A5078).copy(alpha = 0.4f), RoundedCornerShape(cornerRadius)),
         contentAlignment = Alignment.Center
     ) {
         val hiddenHints = setOf("é", "ý", "ú", "í", "ł", "á", "ß", "đ", "ž", "ç", "ñ")
@@ -316,14 +351,14 @@ fun PreviewKey(
                 painter = painterResource(R.drawable.ic_backspace),
                 contentDescription = "Delete",
                 tint = textColor,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
         } else if (label == "↵") {
             Icon(
                 painter = painterResource(R.drawable.ic_keyboard_return),
                 contentDescription = "Enter",
                 tint = textColor,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(19.dp)
             )
         } else if (effectiveHint != null) {
             Column(
@@ -345,11 +380,12 @@ fun PreviewKey(
                 )
             }
         } else {
+            val isArabic = label.length == 1 && (label[0] in 'ء'..'ي' || label == "لا") || label == "لا"
             Text(
                 label,
                 color = textColor,
-                fontSize = if (label.length > 2) 11.sp else 14.sp,
-                fontWeight = if (label in listOf("123", "AR", "EN", "ABC")) FontWeight.Bold else FontWeight.Normal,
+                fontSize = if (label.length > 2) 11.sp else if (isArabic) 15.sp else 14.sp,
+                fontWeight = if (isArabic || label in listOf("123", "AR", "EN", "ABC")) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1
             )
         }

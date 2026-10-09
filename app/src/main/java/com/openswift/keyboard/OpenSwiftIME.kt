@@ -165,22 +165,22 @@ class OpenSwiftIME : InputMethodService() {
     private fun getOrCreateEmojiInputView(): View {
         var inputView = emojiInputView
         if (inputView == null) {
-            val view = EmojiView(this)
-            view.onEmojiSelected = { emoji ->
+            val emojiView = EmojiView(this)
+            emojiView.onEmojiSelected = { emoji ->
                 currentInputConnection?.commitText(emoji, 1)
                 clearInputBuffers()
                 emojiMode = false
                 showKeyboardView()
             }
-            view.onClose = {
+            emojiView.onClose = {
                 emojiMode = false
                 showKeyboardView()
             }
             if (::keyboardView.isInitialized) {
-                view.explicitHeightPx = keyboardView.getEffectiveHeightPx()
+                emojiView.explicitHeightPx = keyboardView.getEffectiveHeightPx()
             }
-            emojiView = view
-            inputView = withNavigationBarInset(view, Themes.Amoled.background)
+            this.emojiView = emojiView
+            inputView = withNavigationBarInset(emojiView, Themes.Amoled.background)
             emojiInputView = inputView
         }
         return inputView

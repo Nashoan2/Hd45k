@@ -240,6 +240,7 @@ class ClipboardView @JvmOverloads constructor(
     }
 
     fun resetScroll() {
+        longPressHandler.removeCallbacksAndMessages(null)
         scroller.forceFinished(true)
         scrollYOffset = 0f
         isDragging = false
@@ -268,11 +269,20 @@ class ClipboardView @JvmOverloads constructor(
         refresh(resetScrollPosition = false)
     }
 
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        longPressHandler.removeCallbacksAndMessages(null)
+        resetScroll()
+    }
+
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
         super.onVisibilityChanged(changedView, visibility)
         if (visibility == View.VISIBLE) {
             resetScroll()
             refresh(resetScrollPosition = false)
+        } else {
+            longPressHandler.removeCallbacksAndMessages(null)
+            resetScroll()
         }
     }
 

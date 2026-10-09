@@ -40,13 +40,13 @@ object Themes {
     val Amoled = KbTheme(
         id = "amoled",
         name = "Cyan Slate",
-        background = KbTheme.rgb(0x11, 0x12, 0x16),
-        keyBackground = KbTheme.rgb(0x23, 0x27, 0x2F),
-        keyModifierBackground = KbTheme.rgb(0x19, 0x1A, 0x20),
+        background = KbTheme.rgb(0x05, 0x0B, 0x14),
+        keyBackground = KbTheme.rgb(0x18, 0x26, 0x3A),
+        keyModifierBackground = KbTheme.rgb(0x12, 0x1C, 0x2B),
         keyText = KbTheme.rgb(0xFF, 0xFF, 0xFF),
         keyAccent = KbTheme.rgb(0x00, 0xE5, 0xFF),
-        suggestionBg = KbTheme.rgb(0x11, 0x12, 0x16),
-        suggestionText = KbTheme.rgb(0xE1, 0xE4, 0xEA),
+        suggestionBg = KbTheme.rgb(0x05, 0x0B, 0x14),
+        suggestionText = KbTheme.rgb(0xFF, 0xFF, 0xFF),
         gestureTrail = KbTheme.rgb(0x00, 0xE5, 0xFF)
     )
 
@@ -79,13 +79,13 @@ object Themes {
     val SwiftDark = KbTheme(
         id = "swift_dark",
         name = "Swift Dark",
-        background = KbTheme.rgb(0x11, 0x12, 0x16),
-        keyBackground = KbTheme.rgb(0x23, 0x27, 0x2F),
-        keyModifierBackground = KbTheme.rgb(0x19, 0x1A, 0x20),
+        background = KbTheme.rgb(0x05, 0x0B, 0x14),
+        keyBackground = KbTheme.rgb(0x18, 0x26, 0x3A),
+        keyModifierBackground = KbTheme.rgb(0x12, 0x1C, 0x2B),
         keyText = KbTheme.rgb(0xFF, 0xFF, 0xFF),
         keyAccent = KbTheme.rgb(0x00, 0xE5, 0xFF),
-        suggestionBg = KbTheme.rgb(0x11, 0x12, 0x16),
-        suggestionText = KbTheme.rgb(0xE1, 0xE4, 0xEA),
+        suggestionBg = KbTheme.rgb(0x05, 0x0B, 0x14),
+        suggestionText = KbTheme.rgb(0xFF, 0xFF, 0xFF),
         gestureTrail = KbTheme.rgb(0x00, 0xE5, 0xFF)
     )
 

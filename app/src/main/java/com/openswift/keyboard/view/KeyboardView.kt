@@ -149,8 +149,7 @@ class KeyboardView(
     private val keyBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 1f
-        color = android.graphics.Color.WHITE
-        alpha = 14
+        color = 0x2A5078A0.toInt()
     }
     
     // Additional Paint objects (allocated once, reused per frame)
@@ -322,9 +321,10 @@ class KeyboardView(
         // Calculate key height in pixels
         val keyHeightPx = keyHeightDp * density
         val suggestionHeightPx = keyHeightPx * 0.82f
-        val rowSpacingPx = 2f * density // small gap between rows
-        val keyPadding = 2.5f * density
+        val rowSpacingPx = 4.2f * density
+        val keyPadding = 2.8f * density
         val keyCornerRadius = 6f * density
+        val effectiveKeyRadius = 13f * density
 
         // Determine base text size matching the fitted size of wide keys like 'ص', 'ض', 'س', 'ش'
         val letterKeyCount = if (effectiveLayout.id.startsWith("arabic")) 11f else 10f
@@ -437,7 +437,29 @@ class KeyboardView(
                 val labelY = resizeDoneBounds.centerY() - ((suggestionPaint.ascent() + suggestionPaint.descent()) / 2f)
                 canvas.drawText(labelText, labelCenter, labelY, suggestionPaint)
             } else {
-                // Toolbar icons: Monogram Hub, Smiley (Emoji), Voice (Mic), Cursor, Clipboard, Hide
+                // Toolbar icons enclosed in neon cyan rounded frame with vertical dividers matching screenshot
+                val barMarginH = 6f * density
+                val barTop = y + (2f * density)
+                val barHeight = suggestionHeightPx - (4f * density)
+                val barBottom = barTop + barHeight
+                val barRadius = 14f * density
+                val barRect = RectF(barMarginH, barTop, w - barMarginH, barBottom)
+
+                // Fill toolbar background (dark midnight)
+                val barBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFF050B14.toInt()
+                    style = Paint.Style.FILL
+                }
+                canvas.drawRoundRect(barRect, barRadius, barRadius, barBgPaint)
+
+                // Neon cyan border outline
+                val barBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFF00E5FF.toInt()
+                    style = Paint.Style.STROKE
+                    strokeWidth = 2.4f * density
+                }
+                canvas.drawRoundRect(barRect, barRadius, barRadius, barBorderPaint)
+
                 val icons = listOf(
                     "hub" to (hubMonogramIcon ?: audioWaveIcon ?: micIcon),
                     "emoji" to (emojiIcon ?: languageIcon),
@@ -447,26 +469,56 @@ class KeyboardView(
                     "hide" to hideIcon,
                 )
                 val iconCount = icons.size
-                val iconSlotWidth = w / iconCount.toFloat()
-                val defaultIconSize = (22f * density).toInt()
+                val slotWidth = barRect.width() / iconCount.toFloat()
+
+                // Divider lines between slots
+                val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFF00E5FF.toInt()
+                    strokeWidth = 1.4f * density
+                    strokeCap = Paint.Cap.ROUND
+                }
+                val dividerHalfH = barHeight * 0.28f
+                val dividerCenterY = barRect.centerY()
+                for (i in 1 until iconCount) {
+                    val divX = barRect.left + (i * slotWidth)
+                    canvas.drawLine(divX, dividerCenterY - dividerHalfH, divX, dividerCenterY + dividerHalfH, dividerPaint)
+                }
 
                 icons.forEachIndexed { index, (action, drawable) ->
                     if (drawable != null) {
-                        val iconSize = if (action == "hide") {
-                            (34f * density).toInt()
-                        } else if (action == "cursor") {
-                            (27f * density).toInt()
-                        } else {
-                            defaultIconSize
+                        val centerX = barRect.left + (index * slotWidth) + (slotWidth / 2f)
+                        val centerY = barRect.centerY()
+                        val iconW: Float
+                        val iconH: Float
+                        when (action) {
+                            "hide" -> {
+                                iconW = 28f * density
+                                iconH = 18f * density
+                            }
+                            "cursor" -> {
+                                iconW = 24f * density
+                                iconH = 22f * density
+                            }
+                            "hub" -> {
+                                iconW = 21f * density
+                                iconH = 21f * density
+                            }
+                            else -> {
+                                iconW = 22f * density
+                                iconH = 22f * density
+                            }
                         }
-                        val iconTop = (y + ((suggestionHeightPx - iconSize) / 2f)).toInt()
-                        val centerX = (index * iconSlotWidth) + (iconSlotWidth / 2f)
-                        val iconLeft = (centerX - (iconSize / 2f)).toInt()
+
+                        val iconLeft = (centerX - (iconW / 2f)).toInt()
+                        val iconTop = (centerY - (iconH / 2f)).toInt()
+                        val iconRight = (centerX + (iconW / 2f)).toInt()
+                        val iconBottom = (centerY + (iconH / 2f)).toInt()
+
                         val hitRect = Rect(
-                            (index * iconSlotWidth).toInt(),
-                            y.toInt(),
-                            ((index + 1) * iconSlotWidth).toInt(),
-                            (y + suggestionHeightPx).toInt()
+                            (barRect.left + (index * slotWidth)).toInt(),
+                            barTop.toInt(),
+                            (barRect.left + ((index + 1) * slotWidth)).toInt(),
+                            barBottom.toInt()
                         )
                         toolbarBounds[action] = hitRect
                         if (action == "voice" && isVoiceListening) {
@@ -474,12 +526,12 @@ class KeyboardView(
                                 color = 0x33EF4444.toInt()
                                 style = Paint.Style.FILL
                             }
-                            canvas.drawCircle(centerX, (iconTop + iconSize / 2f), iconSize * 0.85f, activeBgPaint)
+                            canvas.drawCircle(centerX, centerY, iconW * 0.85f, activeBgPaint)
                             drawable.setTint(0xFFEF4444.toInt())
                         } else {
-                            drawable.setTint(theme.suggestionText)
+                            drawable.setTint(0xFFFFFFFF.toInt())
                         }
-                        drawable.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize)
+                        drawable.setBounds(iconLeft, iconTop, iconRight, iconBottom)
                         drawable.draw(canvas)
                     }
                 }
@@ -520,21 +572,21 @@ class KeyboardView(
                     
                     canvas.drawRoundRect(
                         x2 + keyPadding, y + keyPadding, x2 + kw.toFloat() - keyPadding, y + keyHeightPx - keyPadding,
-                        keyCornerRadius, keyCornerRadius,
+                        effectiveKeyRadius, effectiveKeyRadius,
                         bgPaint
                     )
                     
                     // Subtle modern top highlight for clean key separation
                     canvas.drawRoundRect(
                         x2 + keyPadding, y + keyPadding, x2 + kw.toFloat() - keyPadding, y + keyHeightPx - keyPadding,
-                        keyCornerRadius, keyCornerRadius,
+                        effectiveKeyRadius, effectiveKeyRadius,
                         keyBorderPaint
                     )
                     
                     if (shiftActive && key.code == KC.SHIFT) {
                         canvas.drawRoundRect(
                             x2 + keyPadding, y + keyPadding, x2 + kw.toFloat() - keyPadding, y + keyHeightPx - keyPadding,
-                            keyCornerRadius, keyCornerRadius,
+                            effectiveKeyRadius, effectiveKeyRadius,
                             shiftHighlightPaint
                         )
                     }
@@ -569,7 +621,8 @@ class KeyboardView(
                     }
                     if (keyIcon != null) {
                         val iconSize = (keyHeightPx * 0.44f).toInt()
-                        val iconLeft = (textX - (iconSize / 2f)).toInt()
+                        val iconWidth = if (key.code == KC.DELETE) (keyHeightPx * 0.58f).toInt() else iconSize
+                        val iconLeft = (textX - (iconWidth / 2f)).toInt()
                         val iconTop = (y + ((keyHeightPx - iconSize) / 2f)).toInt()
                         val iconTint = when (key.code) {
                             KC.DELETE -> theme.keyAccent
@@ -581,13 +634,14 @@ class KeyboardView(
                         keyIcon.setBounds(
                             iconLeft,
                             iconTop,
-                            iconLeft + iconSize,
+                            iconLeft + iconWidth,
                             iconTop + iconSize,
                         )
                         keyIcon.draw(canvas)
                     } else {
                         val isCyanKey = displayLabel == "AR" || displayLabel == "EN" || key.label == "AR" || key.label == "EN"
-                        val isBoldKey = isCyanKey || displayLabel == "123" || key.label == "123" || key.code in listOf(KC.ABC, KC.SYMBOLS, KC.SHIFT_SYMBOLS) || displayLabel == "ABC"
+                        val isArabicChar = displayLabel.length == 1 && (displayLabel[0] in 'ء'..'ي' || displayLabel == "لا") || key.label == "لا"
+                        val isBoldKey = isCyanKey || isArabicChar || displayLabel == "123" || key.label == "123" || key.code in listOf(KC.ABC, KC.SYMBOLS, KC.SHIFT_SYMBOLS) || displayLabel == "ABC"
 
                         textPaint.color = if (isCyanKey) theme.keyAccent else theme.keyText
                         textPaint.typeface = if (isBoldKey) {
@@ -596,9 +650,10 @@ class KeyboardView(
                             android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
                         }
 
+                        val isArabicLayout = effectiveLayout.id.startsWith("arabic") || isArabicChar
                         val rawHint = key.popup.firstOrNull()
                         val isHiddenHint = rawHint != null && (rawHint in HIDDEN_HINT_TEXTS || rawHint.lowercase() in HIDDEN_HINT_TEXTS)
-                        val hasHint = key.popup.isNotEmpty() && !key.isModifier && key.code != KC.SPACE && (rawHint?.length ?: 0) <= 2 && !isHiddenHint
+                        val hasHint = !isArabicLayout && key.popup.isNotEmpty() && !key.isModifier && key.code != KC.SPACE && (rawHint?.length ?: 0) <= 2 && !isHiddenHint
                         val hint = if (hasHint) rawHint else null
 
                         if (hasHint && hint != null) {
