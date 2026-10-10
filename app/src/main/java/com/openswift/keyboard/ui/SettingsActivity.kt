@@ -156,16 +156,12 @@ fun KeyboardSettingsTab(settings: Settings, textColor: ComposeColor, accentColor
             var correct by remember { mutableStateOf(settings.autoCorrect) }
             var languageDetection by remember { mutableStateOf(settings.languageDetection) }
             var cap by remember { mutableStateOf(settings.autoCapitalize) }
-            var haptic by remember { mutableStateOf(settings.hapticFeedback) }
-            var sound by remember { mutableStateOf(settings.soundFeedback) }
             var reducedMotion by remember { mutableStateOf(settings.reducedMotion) }
 
             SwitchOption("الكتابة بالسحب السريع", glide, textColor, accentColor) { glide = it; settings.glideEnabled = it }
             SwitchOption("التصحيح التلقائي", correct, textColor, accentColor) { correct = it; settings.autoCorrect = it }
             SwitchOption("التعرف التلقائي على اللغة", languageDetection, textColor, accentColor) { languageDetection = it; settings.languageDetection = it }
             SwitchOption("بدء الجمل بحرف كبير", cap, textColor, accentColor) { cap = it; settings.autoCapitalize = it }
-            SwitchOption("الاهتزاز عند اللمس", haptic, textColor, accentColor) { haptic = it; settings.hapticFeedback = it }
-            SwitchOption("أصوات النقر", sound, textColor, accentColor) { sound = it; settings.soundFeedback = it }
             SwitchOption("تقليل الحركة والانتقالات", reducedMotion, textColor, accentColor) { reducedMotion = it; settings.reducedMotion = it }
         }
     }

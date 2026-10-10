@@ -59,9 +59,7 @@ class ClipboardHistory(ctx: Context) {
             cachedItems?.let { return it }
             val raw = prefs.getString("items", null)
             val list = if (raw == null) {
-                val initialRecent = listOf("pkg update", "68245345")
-                save(initialRecent)
-                initialRecent
+                emptyList<String>()
             } else {
                 runCatching {
                     val arr = JSONArray(raw)
@@ -147,13 +145,7 @@ class ClipboardHistory(ctx: Context) {
             cachedPinnedItems?.let { return it }
             val raw = prefs.getString("pinned_items", null)
             val list = if (raw == null) {
-                val defaultPinned = listOf(
-                    "keysigner", "الف مبارك للجميع",
-                    "payload.apk", "عبدج محمد ناجبر",
-                    "مشاهدة ممتعة للجميع", "عبدالعزيز محمد عبدالله"
-                )
-                savePinned(defaultPinned)
-                defaultPinned
+                emptyList<String>()
             } else {
                 runCatching {
                     val arr = JSONArray(raw)

@@ -19,16 +19,16 @@ class MultilingualPredictor(private val ctx: Context) {
     private val entries: MutableMap<String, Entry> = mutableMapOf()
 
     fun suggest(lang: String, prefix: String, previousWord: String?, limit: Int = 3): List<String> {
-        return entryFor(lang).predictor.suggest(prefix, previousWord, limit)
+        return emptyList()
     }
 
     fun autoCorrect(lang: String, typed: String, previousWord: String?): String {
-        return entryFor(lang).predictor.autoCorrect(typed, previousWord)
+        return typed
     }
 
     fun wordList(lang: String): WordList = entryFor(lang).wordList
 
-    fun frequency(lang: String, word: String): Int = entryFor(lang).wordList.frequency(word)
+    fun frequency(lang: String, word: String): Int = 0
 
     fun userDictionary(lang: String): UserDictionary = entryFor(lang).userDictionary
 

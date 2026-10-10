@@ -6,8 +6,6 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.VelocityTracker
@@ -45,7 +43,6 @@ class ClipboardView @JvmOverloads constructor(
     private val touchSlop = ViewConfiguration.get(ctx).scaledTouchSlop
     private val minFlingVelocity = ViewConfiguration.get(ctx).scaledMinimumFlingVelocity
     private val maxFlingVelocity = ViewConfiguration.get(ctx).scaledMaximumFlingVelocity
-    private val vibrator = ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
     var isDeleteMode = false
         set(value) {
@@ -635,16 +632,7 @@ class ClipboardView @JvmOverloads constructor(
     }
 
     private fun vibrateFeedback() {
-        try {
-            val activeSettings = settings ?: com.openswift.keyboard.data.Settings(context).also { settings = it }
-            if (!activeSettings.hapticFeedback) return
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createOneShot(35, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator?.vibrate(35)
-            }
-        } catch (_: Exception) {}
+        // Haptic feedback completely removed to eliminate battery drain
     }
 
     private fun findCardAt(x: Float, y: Float): ClipCard? {

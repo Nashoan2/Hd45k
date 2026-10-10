@@ -415,7 +415,7 @@ fun HomeUI(
             FeatureCard(
                 icon = Icons.AutoMirrored.Filled.List,
                 title = "العربية والإنجليزية",
-                description = "قاموس مدمج للغتين مع تنبؤ ذكي وتصحيح تلقائي فوري.",
+                description = "لوحة مفاتيح سريعة وخفيفة موفرة للبطارية تدعم اللغتين.",
                 accentColor = accentColor,
                 textColor = textColor,
             )

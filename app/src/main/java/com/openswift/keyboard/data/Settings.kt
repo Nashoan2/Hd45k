@@ -116,15 +116,12 @@ class Settings internal constructor(private val store: SettingsStore) {
         set(value) = store.putBoolean("numrow", value)
 
     var hapticFeedback: Boolean
-        get() = store.getBoolean("haptic_feedback_enabled", false)
-        set(value) {
-            store.putBoolean("haptic_feedback_enabled", value)
-            store.putBoolean("haptic", value)
-        }
+        get() = false
+        set(_) {}
 
     var soundFeedback: Boolean
-        get() = store.getBoolean("sound", false)
-        set(value) = store.putBoolean("sound", value)
+        get() = false
+        set(_) {}
 
     var keyHeightDp: Int
         get() = store.getInt("keyHeight", 78)

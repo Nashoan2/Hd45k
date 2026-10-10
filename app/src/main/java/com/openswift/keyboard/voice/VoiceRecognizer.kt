@@ -52,18 +52,7 @@ class VoiceRecognizer(private val ctx: Context) {
     }
 
     private fun playStartCue() {
-        audioExecutor.execute {
-            try {
-                val toneGenerator = ToneGenerator(AudioManager.STREAM_SYSTEM, 65)
-                toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
-                try {
-                    Thread.sleep(100)
-                } catch (_: Exception) {}
-                try {
-                    toneGenerator.release()
-                } catch (_: Exception) {}
-            } catch (_: Exception) {}
-        }
+        // Audio cues removed for completely silent operation and battery preservation
     }
 
     private fun extractLivePartialText(results: android.os.Bundle?): String {

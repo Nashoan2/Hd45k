@@ -109,52 +109,7 @@ fun PrivacyUI(
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
-        // Dictionary Stats Section
-        PrivacyDataCard(
-            icon = Icons.Filled.Edit,
-            title = "التعلم والقاموس المحلي",
-            subtitle = "$wordCount كلمات متعلمة",
-            bgColor = bgColor,
-            accentColor = accentColor,
-            textColor = textColor
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
-            ) {
-                StatsRow("الكلمات المتعلمة", wordCount.toString(), textColor)
-                HorizontalDivider(
-                    color = textColor.copy(alpha = Alphas.divider),
-                    modifier = Modifier.padding(vertical = Spacing.sm)
-                )
-                Text(
-                    "يتعلم جهازك من أسلوب كتابتك لتقديم اقتراحات وتنبؤات أدق محلياً وبدون إنترنت.",
-                    style = AppTypography.bodySmall,
-                    color = textColor.copy(alpha = 0.6f)
-                )
-            }
-            
-            Button(
-                onClick = {
-                    userDict.reset()
-                    wordCount = 0
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = accentColor.copy(alpha = 0.15f),
-                    contentColor = accentColor
-                ),
-                shape = Shapes.sm
-            ) {
-                Text("إعادة ضبط القاموس", style = AppTypography.labelMedium)
-            }
-        }
 
-        Spacer(modifier = Modifier.height(Spacing.lg))
 
         // Data Deletion Section
         Card(
@@ -188,7 +143,7 @@ fun PrivacyUI(
                 }
                 
                 Text(
-                    "حذف دائم لسجل الحافظة، الكلمات المتعلمة، القصاصات النصية، السمات والتخطيطات المخصصة، وسجل التعبيرات. لا يمكن التراجع عن هذا الإجراء.",
+                    "حذف دائم لسجل الحافظة، القصاصات النصية، السمات والتخطيطات المخصصة، وسجل التعبيرات. لا يمكن التراجع عن هذا الإجراء.",
                     style = AppTypography.bodySmall,
                     color = textColor.copy(alpha = 0.8f)
                 )

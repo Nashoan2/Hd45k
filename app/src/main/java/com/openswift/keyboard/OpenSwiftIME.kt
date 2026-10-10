@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodSubtype
 import android.widget.FrameLayout
-import android.os.Vibrator
 import android.speech.SpeechRecognizer
 import android.widget.Toast
 import androidx.core.view.ViewCompat
@@ -63,7 +62,7 @@ class OpenSwiftIME : InputMethodService() {
     private var textEditingInputView: View? = null
     private var toolsHubInputView: View? = null
     private var numberRowView: com.openswift.keyboard.view.NumberRowView? = null
-    private lateinit var vibrator: Vibrator
+    private var primaryClipListener: android.content.ClipboardManager.OnPrimaryClipChangedListener? = null
 
     private var currentLayout = Layouts.Arabic
     private var shiftActive = false
@@ -95,14 +94,15 @@ class OpenSwiftIME : InputMethodService() {
         refreshLanguageState()
         snippets = SnippetManager(this)
         perAppSettings = PerAppSettings(this)
-        vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
         Settings.encryptedPreferences(this).registerOnSharedPreferenceChangeListener(prefChangeListener)
         val cb = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-        cb?.addPrimaryClipChangedListener {
+        val clipListener = android.content.ClipboardManager.OnPrimaryClipChangedListener {
             clipboard.onSystemClipChanged()
             clipboard.captureSystem(this, enabled = true, privateField = privacyModeActive)
             clipboardView?.refresh()
         }
+        primaryClipListener = clipListener
+        cb?.addPrimaryClipChangedListener(clipListener)
     }
 
     override fun onCreateInputView(): View {
@@ -455,59 +455,28 @@ class OpenSwiftIME : InputMethodService() {
                         appendSnippetText(text)
                     }
                     updateSuggestions()
-                }
             }
         }
-        if (settings.soundFeedback) {
-            try {
-                val am = getSystemService(AUDIO_SERVICE) as? android.media.AudioManager
-                val effect = when (code) {
-                    KC.DELETE -> android.media.AudioManager.FX_KEYPRESS_DELETE
-                    KC.SPACE -> android.media.AudioManager.FX_KEYPRESS_SPACEBAR
-                    KC.ENTER -> android.media.AudioManager.FX_KEYPRESS_RETURN
-                    else -> android.media.AudioManager.FX_KEYPRESS_STANDARD
-                }
-                am?.playSoundEffect(effect)
-            } catch (_: Exception) {}
-        }
-        if (settings.hapticFeedback) {
-            try {
-                if (vibrator.hasVibrator()) {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator.vibrate(20)
-                    }
-                }
-            } catch (_: Exception) {}
-        }
+    }
     }
 
     private fun commitWord(word: String) {
         val ic = currentInputConnection ?: return
         val typedWord = currentWord.toString()
-        if (learningEnabled()) {
-            userDict.learn(previousWord.ifEmpty { null }, word)
-            rememberLanguageToken(word)
-        }
         val plan = WordCommitPolicy.plan(typedWord, word, shiftActive)
         if (plan.charactersToDelete > 0) {
             ic.deleteSurroundingText(plan.charactersToDelete, 0)
         }
         plan.textToCommit?.let { ic.commitText(it, 1) }
         currentWord.clear()
-        previousWord = if (learningEnabled()) word else ""
+        previousWord = word
         shiftActive = false
         keyboardView.setShift(false)
         updateSuggestions()
     }
 
     private fun correctedCurrentWord(): String {
-        val typedWord = currentWord.toString()
-        if (!predictionsEnabled() || !settings.autoCorrect) return typedWord
-        detectLanguageForCurrentContext(typedWord)
-        return predictor.autoCorrect(activeLanguageCode, typedWord, previousWord)
+        return currentWord.toString()
     }
 
     private fun expandSnippetIfMatched(): Boolean {
@@ -556,18 +525,7 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private fun updateSuggestions() {
-        if (!predictionsEnabled() || currentWord.isEmpty()) {
-            keyboardView.setSuggestions(emptyList())
-            return
-        }
-        val prefix = currentWord.toString()
-        val suggestions = predictor.suggest(
-            lang = activeLanguageCode,
-            prefix = prefix,
-            previousWord = previousWord.ifEmpty { null },
-            limit = 3,
-        )
-        keyboardView.setSuggestions(suggestions)
+        keyboardView.setSuggestions(emptyList())
     }
 
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
@@ -766,14 +724,6 @@ class OpenSwiftIME : InputMethodService() {
                 ic.sendKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, 0, KeyEvent.META_CTRL_ON))
             }
         }
-        if (settings.hapticFeedback) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(20)
-            }
-        }
     }
 
     private fun handleToolSelected(tool: ToolsHubView.ToolId) {
@@ -852,12 +802,6 @@ class OpenSwiftIME : InputMethodService() {
 
     override fun onFinishInput() {
         super.onFinishInput()
-        if (currentWord.isNotEmpty() && learningEnabled()) {
-            detectLanguageForCurrentContext(currentWord.toString())
-            userDict.learn(previousWord.ifEmpty { null }, currentWord.toString())
-            rememberLanguageToken(currentWord.toString())
-            userDict.save()
-        }
         clearInputBuffers()
         languageContext.clear()
         previousWord = ""
@@ -1010,6 +954,11 @@ class OpenSwiftIME : InputMethodService() {
         try {
             Settings.encryptedPreferences(this).unregisterOnSharedPreferenceChangeListener(prefChangeListener)
         } catch (_: Exception) {}
+        try {
+            val cb = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+            primaryClipListener?.let { cb?.removePrimaryClipChangedListener(it) }
+        } catch (_: Exception) {}
+        primaryClipListener = null
         voiceRecognizer?.destroy()
         voiceRecognizer = null
         super.onDestroy()

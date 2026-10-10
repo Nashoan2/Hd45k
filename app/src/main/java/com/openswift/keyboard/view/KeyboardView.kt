@@ -158,11 +158,6 @@ class KeyboardView(
             return
         }
         onKeyListener?.invoke(key.code, key.label)
-        try {
-            if (settings.hapticFeedback) {
-                performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-            }
-        } catch (_: Exception) {}
     }
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
@@ -360,11 +355,6 @@ class KeyboardView(
             if (!isDeleteActive) return
             deleteRepeatCount++
             onKeyListener?.invoke(KC.DELETE, "Delete")
-            try {
-                if (settings.hapticFeedback && (deleteRepeatCount % 3 == 0 || deleteRepeatCount < 5)) {
-                    performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-                }
-            } catch (_: Exception) {}
 
             // Accelerating repeat rate for super fast deletion
             val interval = when {
@@ -871,11 +861,6 @@ class KeyboardView(
                         glideSamples.clear()
                         isLamAlefPopupVisible = true
                         invalidate()
-                        try {
-                            if (settings.hapticFeedback) {
-                                performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-                            }
-                        } catch (_: Exception) {}
                     }
                     longPressHandler.postDelayed(longPressRunnable!!, 320L)
                 } else if (pressedKey != null && pressedKey.popup.isNotEmpty() && !pressedKey.isModifier) {
@@ -887,11 +872,6 @@ class KeyboardView(
                             isGliding = false
                             glideSamples.clear()
                             onKeyListener?.invoke(popupTarget.first().code, popupTarget)
-                            try {
-                                if (settings.hapticFeedback) {
-                                    performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-                                }
-                            } catch (_: Exception) {}
                         }
                         longPressHandler.postDelayed(longPressRunnable!!, 360L)
                     }

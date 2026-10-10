@@ -603,15 +603,7 @@ fun EnhancedSettingsUI(
             ToggleOption("بدء الجمل بحرف كبير", settings.autoCapitalize, textColor) { settings.autoCapitalize = it }
         }
 
-        // Feedback
-        SettingsSection(
-            title = "التفاعل والاهتزاز",
-            textColor = textColor,
-            accentColor = accentColor
-        ) {
-            ToggleOption("الاهتزاز عند اللمس", settings.hapticFeedback, textColor) { settings.hapticFeedback = it }
-            ToggleOption("أصوات النقر", settings.soundFeedback, textColor) { settings.soundFeedback = it }
-        }
+
 
         // Accessibility
         SettingsSection(

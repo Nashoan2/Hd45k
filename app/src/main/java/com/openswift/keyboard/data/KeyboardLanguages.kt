@@ -1,18 +1,16 @@
 package com.openswift.keyboard.data
 
-import com.openswift.keyboard.R
-
 data class KeyboardLanguage(
     val code: String,
     val name: String,
     val locale: String,
     val layoutId: String,
-    val wordListRes: Int
+    val wordListRes: Int = 0
 )
 
 object KeyboardLanguages {
-    val English = KeyboardLanguage("en", "English", "en_US", "qwerty", R.raw.words)
-    val Arabic = KeyboardLanguage("ar", "العربية (Arabic)", "ar", "arabic", R.raw.words_ar)
+    val English = KeyboardLanguage("en", "English", "en_US", "qwerty", 0)
+    val Arabic = KeyboardLanguage("ar", "العربية (Arabic)", "ar", "arabic", 0)
 
     val all = listOf(
         English,

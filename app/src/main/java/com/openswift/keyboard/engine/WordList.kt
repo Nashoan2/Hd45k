@@ -1,7 +1,6 @@
 package com.openswift.keyboard.engine
 
 import android.content.Context
-import com.openswift.keyboard.R
 import java.util.Locale
 
 /** Loads and indexes the static word-frequency list shipped with the app. */
@@ -29,7 +28,7 @@ class WordList private constructor(rawFrequencies: Map<String, Int>) {
         wordsByLength = words.groupBy { it.length }
     }
 
-    constructor(ctx: Context, wordListRes: Int = R.raw.words) : this(load(ctx, wordListRes))
+    constructor(ctx: Context, wordListRes: Int = 0) : this(emptyMap())
 
     fun frequency(word: String): Int = frequencies[word.lowercase(Locale.ROOT)] ?: 0
 
@@ -77,8 +76,7 @@ class WordList private constructor(rawFrequencies: Map<String, Int>) {
             return frequencies
         }
 
-        private fun load(ctx: Context, wordListRes: Int): Map<String, Int> =
-            ctx.resources.openRawResource(wordListRes).bufferedReader().useLines(::parseLines)
+        private fun load(ctx: Context, wordListRes: Int): Map<String, Int> = emptyMap()
 
         private fun lowerBound(values: List<String>, target: String): Int {
             var low = 0
