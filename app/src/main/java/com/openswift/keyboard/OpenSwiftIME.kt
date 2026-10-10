@@ -458,13 +458,29 @@ class OpenSwiftIME : InputMethodService() {
                 }
             }
         }
+        if (settings.soundFeedback) {
+            try {
+                val am = getSystemService(AUDIO_SERVICE) as? android.media.AudioManager
+                val effect = when (code) {
+                    KC.DELETE -> android.media.AudioManager.FX_KEYPRESS_DELETE
+                    KC.SPACE -> android.media.AudioManager.FX_KEYPRESS_SPACEBAR
+                    KC.ENTER -> android.media.AudioManager.FX_KEYPRESS_RETURN
+                    else -> android.media.AudioManager.FX_KEYPRESS_STANDARD
+                }
+                am?.playSoundEffect(effect)
+            } catch (_: Exception) {}
+        }
         if (settings.hapticFeedback) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(20)
-            }
+            try {
+                if (vibrator.hasVibrator()) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(20)
+                    }
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -484,6 +500,7 @@ class OpenSwiftIME : InputMethodService() {
         previousWord = if (learningEnabled()) word else ""
         shiftActive = false
         keyboardView.setShift(false)
+        updateSuggestions()
     }
 
     private fun correctedCurrentWord(): String {
@@ -539,7 +556,18 @@ class OpenSwiftIME : InputMethodService() {
     }
 
     private fun updateSuggestions() {
-        keyboardView.setSuggestions(emptyList())
+        if (!predictionsEnabled() || currentWord.isEmpty()) {
+            keyboardView.setSuggestions(emptyList())
+            return
+        }
+        val prefix = currentWord.toString()
+        val suggestions = predictor.suggest(
+            lang = activeLanguageCode,
+            prefix = prefix,
+            previousWord = previousWord.ifEmpty { null },
+            limit = 3,
+        )
+        keyboardView.setSuggestions(suggestions)
     }
 
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype?) {
@@ -845,7 +873,8 @@ class OpenSwiftIME : InputMethodService() {
         }
     }
 
-    private fun predictionsEnabled(): Boolean = false
+    private fun predictionsEnabled(): Boolean =
+        !privacyModeActive && !activeAppConfig.predictionsDisabled
 
     private fun learningEnabled(): Boolean = predictionsEnabled()
 
