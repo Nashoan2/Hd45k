@@ -4,18 +4,22 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import java.util.*
+import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
- * High-speed, responsive voice input manager:
- * - Real-time streaming transcription with live partial results for instant typing.
- * - Single continuous session with generous silence timeouts so it waits for the speaker.
- * - Plays ONLY a single audio tone upon user activation (mic click), zero stop or completion tones.
- * - Suppresses all system earcons (end sounds, completion chimes, error beeps).
+ * Ultra-fast, low-latency, battery-efficient voice input manager:
+ * - Immediate parallel activation and on-device / local-first speech recognition prioritization.
+ * - Real-time streaming transcription with instant partial results for blazing-fast voice typing.
+ * - Instantaneous UI feedback and minimal silence wait (1.5s after speech finishes vs 5s lag)
+ *   so completed phrases commit quickly and seamlessly.
+ * - Plays ONLY a single, quick audio cue upon user activation (mic click) in a non-blocking background thread.
+ * - Zero stop or completion tones; all system earcons (end sounds, completion chimes, error beeps) suppressed.
  * - Immediately frees microphone and audio focus on finish or cancellation, ensuring
  *   the device volume is never muted and battery is conserved when not listening.
  * - Strictly does NOT alter or touch device volume or mute stream settings.
@@ -32,6 +36,7 @@ class VoiceRecognizer(private val ctx: Context) {
     private var currentLanguage: String = Locale.getDefault().language
     private val mainHandler = Handler(Looper.getMainLooper())
     private var lastPartialDispatched = ""
+    private val audioExecutor = Executors.newSingleThreadExecutor()
 
     private val silenceTimeoutRunnable = Runnable {
         if (isListening) {
@@ -39,23 +44,26 @@ class VoiceRecognizer(private val ctx: Context) {
         }
     }
 
-    private fun resetSilenceTimer() {
+    private fun resetSilenceTimer(customTimeoutMs: Long = SILENCE_TIMEOUT_MS) {
         mainHandler.removeCallbacks(silenceTimeoutRunnable)
         if (isListening) {
-            mainHandler.postDelayed(silenceTimeoutRunnable, SILENCE_TIMEOUT_MS)
+            mainHandler.postDelayed(silenceTimeoutRunnable, customTimeoutMs)
         }
     }
 
     private fun playStartCue() {
-        try {
-            val toneGenerator = ToneGenerator(AudioManager.STREAM_SYSTEM, 65)
-            toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
-            mainHandler.postDelayed({
+        audioExecutor.execute {
+            try {
+                val toneGenerator = ToneGenerator(AudioManager.STREAM_SYSTEM, 65)
+                toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
+                try {
+                    Thread.sleep(100)
+                } catch (_: Exception) {}
                 try {
                     toneGenerator.release()
                 } catch (_: Exception) {}
-            }, 250)
-        } catch (_: Exception) {}
+            } catch (_: Exception) {}
+        }
     }
 
     private fun extractLivePartialText(results: android.os.Bundle?): String {
@@ -76,7 +84,7 @@ class VoiceRecognizer(private val ctx: Context) {
     }
 
     fun prewarm() {
-        // No-op: Do not bind background speech services prematurely to avoid battery drain.
+        // Kept no-op to conserve battery.
     }
 
     private fun initRecognizer(): Boolean {
@@ -84,13 +92,28 @@ class VoiceRecognizer(private val ctx: Context) {
             if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
                 return false
             }
-            try {
-                recognizer = SpeechRecognizer.createSpeechRecognizer(ctx)
-            } catch (_: Exception) {
+
+            // 1. Prioritize low-latency on-device recognition if available (Android 12+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 try {
-                    recognizer = SpeechRecognizer.createSpeechRecognizer(ctx.applicationContext)
+                    if (SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)) {
+                        recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
+                    }
                 } catch (_: Exception) {
-                    return false
+                    recognizer = null
+                }
+            }
+
+            // 2. Fall back to standard recognizer if on-device is not available or threw an error
+            if (recognizer == null) {
+                try {
+                    recognizer = SpeechRecognizer.createSpeechRecognizer(ctx)
+                } catch (_: Exception) {
+                    try {
+                        recognizer = SpeechRecognizer.createSpeechRecognizer(ctx.applicationContext)
+                    } catch (_: Exception) {
+                        return false
+                    }
                 }
             }
 
@@ -113,7 +136,11 @@ class VoiceRecognizer(private val ctx: Context) {
                     resetSilenceTimer()
                 }
 
-                override fun onEndOfSpeech() {}
+                override fun onEndOfSpeech() {
+                    // Speech stopped: accelerate wrap-up with a responsive 1.5s silence timeout
+                    // instead of waiting many seconds if system finalization is slow.
+                    resetSilenceTimer(SPEECH_COMPLETION_TIMEOUT_MS)
+                }
 
                 override fun onPartialResults(results: android.os.Bundle?) {
                     val liveText = extractLivePartialText(results)
@@ -143,7 +170,7 @@ class VoiceRecognizer(private val ctx: Context) {
                 override fun onError(error: Int) {
                     if (!isListening) return
 
-                    // Flush any pending partial text before cleanup
+                    // Flush any pending partial text before cleanup so user speech is not lost
                     if (lastPartialDispatched.isNotBlank()) {
                         val pending = lastPartialDispatched
                         lastPartialDispatched = ""
@@ -188,10 +215,11 @@ class VoiceRecognizer(private val ctx: Context) {
             // Suppress system earcons so no completion, end, or error tones are emitted by the engine
             putExtra("android.speech.extra.SUPPRESS_EARCONS", true)
             putExtra("suppress_earcons", true)
-            // Generous silence thresholds: allows natural thinking/pausing without premature cutoff
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 0L)
+            // Prefer offline on-device processing where possible for instant low-latency transcription
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Low-latency silence thresholds for prompt, snappy voice typing
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
         }
     }
 
@@ -200,7 +228,7 @@ class VoiceRecognizer(private val ctx: Context) {
         isListening = true
         lastPartialDispatched = ""
 
-        // Play the single start cue requested by the user exclusively on activation
+        // Play the single start cue requested by the user exclusively on activation in parallel
         playStartCue()
 
         cleanupRecognizer()
@@ -246,10 +274,12 @@ class VoiceRecognizer(private val ctx: Context) {
         mainHandler.removeCallbacks(silenceTimeoutRunnable)
         mainHandler.removeCallbacksAndMessages(null)
         cleanupRecognizer()
+        audioExecutor.shutdownNow()
         onStateChanged?.invoke(false)
     }
 
     companion object {
         const val SILENCE_TIMEOUT_MS = 7_000L
+        const val SPEECH_COMPLETION_TIMEOUT_MS = 1_500L
     }
 }
