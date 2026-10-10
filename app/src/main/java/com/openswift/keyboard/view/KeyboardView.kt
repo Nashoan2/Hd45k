@@ -74,7 +74,20 @@ class KeyboardView(
     }
 
     companion object {
-        private val HIDDEN_HINT_TEXTS = setOf("é", "ý", "ú", "í", "ł", "á", "ß", "đ", "ž", "ç", "ñ")
+        private val HIDDEN_HINT_TEXTS = setOf(
+            "é", "è", "ê", "ë", "ē", "ę",
+            "ý", "ÿ",
+            "ú", "ù", "û", "ü", "ū",
+            "í", "ì", "î", "ï", "ī",
+            "ó", "ò", "ô", "ö", "õ", "ø", "œ", "ō",
+            "ł",
+            "á", "à", "â", "ä", "ã", "å", "æ", "ā",
+            "ß", "ś", "š",
+            "đ",
+            "ž", "ź", "ż",
+            "ç", "ć", "č",
+            "ñ", "ń"
+        )
         private val TYPEFACE_NORMAL: android.graphics.Typeface =
             android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
         private val TYPEFACE_BOLD: android.graphics.Typeface =
@@ -722,7 +735,8 @@ class KeyboardView(
 
                         val isArabicLayout = effectiveLayout.id.startsWith("arabic") || isArabicChar
                         val rawHint = key.popup.firstOrNull()
-                        val isHiddenHint = rawHint != null && (rawHint in HIDDEN_HINT_TEXTS || rawHint.lowercase() in HIDDEN_HINT_TEXTS)
+                        val isLatinLetter = (key.code in 'a'.code..'z'.code) || (key.code in 'A'.code..'Z'.code) || (displayLabel.length == 1 && displayLabel[0].lowercaseChar() in 'a'..'z')
+                        val isHiddenHint = isLatinLetter || (rawHint != null && (rawHint in HIDDEN_HINT_TEXTS || rawHint.lowercase() in HIDDEN_HINT_TEXTS))
                         val hasHint = !isArabicLayout && key.popup.isNotEmpty() && !key.isModifier && key.code != KC.SPACE && (rawHint?.length ?: 0) <= 2 && !isHiddenHint
                         val hint = if (hasHint) rawHint else null
 
@@ -865,8 +879,9 @@ class KeyboardView(
                     }
                     longPressHandler.postDelayed(longPressRunnable!!, 320L)
                 } else if (pressedKey != null && pressedKey.popup.isNotEmpty() && !pressedKey.isModifier) {
+                    val isLatinLetter = (pressedKey.code in 'a'.code..'z'.code) || (pressedKey.code in 'A'.code..'Z'.code) || (pressedKey.label.length == 1 && pressedKey.label[0].lowercaseChar() in 'a'..'z')
                     val popupTarget = pressedKey.popup.firstOrNull()
-                    if (popupTarget != null && popupTarget.isNotEmpty() && popupTarget !in HIDDEN_HINT_TEXTS && popupTarget.lowercase() !in HIDDEN_HINT_TEXTS) {
+                    if (!isLatinLetter && popupTarget != null && popupTarget.isNotEmpty() && popupTarget !in HIDDEN_HINT_TEXTS && popupTarget.lowercase() !in HIDDEN_HINT_TEXTS) {
                         longPressRunnable = Runnable {
                             longPressTriggered = true
                             isGliding = false

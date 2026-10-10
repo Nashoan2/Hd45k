@@ -93,27 +93,13 @@ class VoiceRecognizer(private val ctx: Context) {
                 return false
             }
 
-            // 1. Prioritize low-latency on-device recognition if available (Android 12+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                recognizer = SpeechRecognizer.createSpeechRecognizer(ctx)
+            } catch (_: Exception) {
                 try {
-                    if (SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)) {
-                        recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
-                    }
+                    recognizer = SpeechRecognizer.createSpeechRecognizer(ctx.applicationContext)
                 } catch (_: Exception) {
-                    recognizer = null
-                }
-            }
-
-            // 2. Fall back to standard recognizer if on-device is not available or threw an error
-            if (recognizer == null) {
-                try {
-                    recognizer = SpeechRecognizer.createSpeechRecognizer(ctx)
-                } catch (_: Exception) {
-                    try {
-                        recognizer = SpeechRecognizer.createSpeechRecognizer(ctx.applicationContext)
-                    } catch (_: Exception) {
-                        return false
-                    }
+                    return false
                 }
             }
 
@@ -137,14 +123,12 @@ class VoiceRecognizer(private val ctx: Context) {
                 }
 
                 override fun onEndOfSpeech() {
-                    // Speech stopped: accelerate wrap-up with a responsive 1.5s silence timeout
-                    // instead of waiting many seconds if system finalization is slow.
                     resetSilenceTimer(SPEECH_COMPLETION_TIMEOUT_MS)
                 }
 
                 override fun onPartialResults(results: android.os.Bundle?) {
                     val liveText = extractLivePartialText(results)
-                    if (liveText.isNotEmpty() && liveText != lastPartialDispatched) {
+                    if (liveText.isNotBlank()) {
                         lastPartialDispatched = liveText
                         resetSilenceTimer()
                         onPartialResult?.invoke(liveText)
@@ -152,16 +136,14 @@ class VoiceRecognizer(private val ctx: Context) {
                 }
 
                 override fun onResults(results: android.os.Bundle?) {
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull()?.trim().takeUnless { it.isNullOrEmpty() }
+                    val liveText = extractLivePartialText(results)
+                    val text = liveText.takeIf { it.isNotBlank() }
                         ?: lastPartialDispatched.takeIf { it.isNotBlank() }
                     lastPartialDispatched = ""
                     if (!text.isNullOrEmpty()) {
                         onResult?.invoke(text)
                     }
 
-                    // Natural completion: Clean up recognizer immediately to release audio focus
-                    // and stop microphone/battery consumption. No completion sound played.
                     isListening = false
                     cleanupRecognizer()
                     onStateChanged?.invoke(false)
@@ -170,7 +152,7 @@ class VoiceRecognizer(private val ctx: Context) {
                 override fun onError(error: Int) {
                     if (!isListening) return
 
-                    // Flush any pending partial text before cleanup so user speech is not lost
+                    // If error is no match or speech timeout and we have partial text, commit it!
                     if (lastPartialDispatched.isNotBlank()) {
                         val pending = lastPartialDispatched
                         lastPartialDispatched = ""
@@ -209,17 +191,11 @@ class VoiceRecognizer(private val ctx: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, currentLanguage)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra("android.speech.extra.DICTATION_MODE", true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
-            // Suppress system earcons so no completion, end, or error tones are emitted by the engine
+            // Suppress extra beeps if supported
             putExtra("android.speech.extra.SUPPRESS_EARCONS", true)
             putExtra("suppress_earcons", true)
-            // Prefer offline on-device processing where possible for instant low-latency transcription
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            // Low-latency silence thresholds for prompt, snappy voice typing
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
         }
     }
 
