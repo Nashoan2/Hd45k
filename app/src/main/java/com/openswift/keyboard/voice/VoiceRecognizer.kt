@@ -2,6 +2,8 @@ package com.openswift.keyboard.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognizerIntent
@@ -10,11 +12,13 @@ import java.util.*
 
 /**
  * High-speed, responsive voice input manager:
- * - Real-time streaming transcription with partial results.
+ * - Real-time streaming transcription with live partial results for instant typing.
  * - Single continuous session with generous silence timeouts so it waits for the speaker.
- * - Strictly does NOT touch, modify, or mute phone audio/volume settings.
- * - Plays only the system mic-on cue upon activation, zero stop sounds.
- * - Suppresses all intrusive error toasts and dialogs.
+ * - Plays ONLY a single audio tone upon user activation (mic click), zero stop or completion tones.
+ * - Suppresses all system earcons (end sounds, completion chimes, error beeps).
+ * - Immediately frees microphone and audio focus on finish or cancellation, ensuring
+ *   the device volume is never muted and battery is conserved when not listening.
+ * - Strictly does NOT alter or touch device volume or mute stream settings.
  */
 class VoiceRecognizer(private val ctx: Context) {
 
@@ -42,6 +46,18 @@ class VoiceRecognizer(private val ctx: Context) {
         }
     }
 
+    private fun playStartCue() {
+        try {
+            val toneGenerator = ToneGenerator(AudioManager.STREAM_SYSTEM, 65)
+            toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+            mainHandler.postDelayed({
+                try {
+                    toneGenerator.release()
+                } catch (_: Exception) {}
+            }, 250)
+        } catch (_: Exception) {}
+    }
+
     private fun extractLivePartialText(results: android.os.Bundle?): String {
         if (results == null) return ""
         val stable = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -60,7 +76,7 @@ class VoiceRecognizer(private val ctx: Context) {
     }
 
     fun prewarm() {
-        mainHandler.post { initRecognizer() }
+        // No-op: Do not bind background speech services prematurely to avoid battery drain.
     }
 
     private fun initRecognizer(): Boolean {
@@ -117,17 +133,17 @@ class VoiceRecognizer(private val ctx: Context) {
                         onResult?.invoke(text)
                     }
 
-                    // Session completed naturally; update state without restarting
-                    // so no redundant completion or loop beeps occur.
+                    // Natural completion: Clean up recognizer immediately to release audio focus
+                    // and stop microphone/battery consumption. No completion sound played.
                     isListening = false
-                    mainHandler.removeCallbacks(silenceTimeoutRunnable)
+                    cleanupRecognizer()
                     onStateChanged?.invoke(false)
                 }
 
                 override fun onError(error: Int) {
                     if (!isListening) return
 
-                    // Flush any pending text transcribed before pause/error
+                    // Flush any pending partial text before cleanup
                     if (lastPartialDispatched.isNotBlank()) {
                         val pending = lastPartialDispatched
                         lastPartialDispatched = ""
@@ -135,7 +151,7 @@ class VoiceRecognizer(private val ctx: Context) {
                     }
 
                     isListening = false
-                    mainHandler.removeCallbacks(silenceTimeoutRunnable)
+                    cleanupRecognizer()
                     onStateChanged?.invoke(false)
                     onError?.invoke("")
                 }
@@ -146,13 +162,18 @@ class VoiceRecognizer(private val ctx: Context) {
         return recognizer != null
     }
 
-    private fun recreateRecognizer() {
-        try {
-            recognizer?.cancel()
-            recognizer?.destroy()
-        } catch (_: Exception) {}
+    private fun cleanupRecognizer() {
+        mainHandler.removeCallbacks(silenceTimeoutRunnable)
+        val r = recognizer
         recognizer = null
-        initRecognizer()
+        if (r != null) {
+            try {
+                r.cancel()
+            } catch (_: Exception) {}
+            try {
+                r.destroy()
+            } catch (_: Exception) {}
+        }
     }
 
     private fun buildIntent(): Intent {
@@ -164,7 +185,10 @@ class VoiceRecognizer(private val ctx: Context) {
             putExtra("android.speech.extra.DICTATION_MODE", true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
-            // Generous silence threshold: does not cut off speech during thinking or breathing pauses
+            // Suppress system earcons so no completion, end, or error tones are emitted by the engine
+            putExtra("android.speech.extra.SUPPRESS_EARCONS", true)
+            putExtra("suppress_earcons", true)
+            // Generous silence thresholds: allows natural thinking/pausing without premature cutoff
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 0L)
@@ -176,6 +200,10 @@ class VoiceRecognizer(private val ctx: Context) {
         isListening = true
         lastPartialDispatched = ""
 
+        // Play the single start cue requested by the user exclusively on activation
+        playStartCue()
+
+        cleanupRecognizer()
         if (!initRecognizer()) {
             isListening = false
             onStateChanged?.invoke(false)
@@ -183,38 +211,33 @@ class VoiceRecognizer(private val ctx: Context) {
         }
 
         try {
-            recognizer?.cancel()
             recognizer?.startListening(buildIntent())
             resetSilenceTimer()
             onStateChanged?.invoke(true)
         } catch (_: Exception) {
-            recreateRecognizer()
-            try {
-                recognizer?.startListening(buildIntent())
-                resetSilenceTimer()
-                onStateChanged?.invoke(true)
-            } catch (_: Exception) {
-                isListening = false
-                mainHandler.removeCallbacks(silenceTimeoutRunnable)
-                onStateChanged?.invoke(false)
+            cleanupRecognizer()
+            if (initRecognizer()) {
+                try {
+                    recognizer?.startListening(buildIntent())
+                    resetSilenceTimer()
+                    onStateChanged?.invoke(true)
+                    return
+                } catch (_: Exception) {}
             }
+            isListening = false
+            cleanupRecognizer()
+            onStateChanged?.invoke(false)
         }
     }
 
     fun stopListening() {
-        val wasListening = isListening
         isListening = false
         if (lastPartialDispatched.isNotBlank()) {
             val pending = lastPartialDispatched
             lastPartialDispatched = ""
             onResult?.invoke(pending)
         }
-        mainHandler.removeCallbacks(silenceTimeoutRunnable)
-        if (wasListening) {
-            try {
-                recognizer?.cancel()
-            } catch (_: Exception) {}
-        }
+        cleanupRecognizer()
         onStateChanged?.invoke(false)
     }
 
@@ -222,11 +245,7 @@ class VoiceRecognizer(private val ctx: Context) {
         isListening = false
         mainHandler.removeCallbacks(silenceTimeoutRunnable)
         mainHandler.removeCallbacksAndMessages(null)
-        try {
-            recognizer?.cancel()
-            recognizer?.destroy()
-        } catch (_: Exception) {}
-        recognizer = null
+        cleanupRecognizer()
         onStateChanged?.invoke(false)
     }
 

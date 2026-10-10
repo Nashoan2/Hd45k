@@ -103,14 +103,6 @@ class OpenSwiftIME : InputMethodService() {
             clipboard.captureSystem(this, enabled = true, privateField = privacyModeActive)
             clipboardView?.refresh()
         }
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            try {
-                if (voiceRecognizer == null) {
-                    voiceRecognizer = VoiceRecognizer(this)
-                }
-                voiceRecognizer?.prewarm()
-            } catch (_: Exception) {}
-        }
     }
 
     override fun onCreateInputView(): View {
@@ -311,6 +303,9 @@ class OpenSwiftIME : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        if (isListeningVoice) {
+            stopVoiceTyping()
+        }
         emojiMode = false
         clipboardMode = false
         symbolsActive = false
@@ -321,6 +316,13 @@ class OpenSwiftIME : InputMethodService() {
         }
         if (::keyboardInputView.isInitialized) {
             showKeyboardView()
+        }
+    }
+
+    override fun onWindowHidden() {
+        super.onWindowHidden()
+        if (isListeningVoice) {
+            stopVoiceTyping()
         }
     }
 
