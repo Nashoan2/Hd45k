@@ -2,7 +2,6 @@ package com.openswift.keyboard.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.preference.PreferenceManager
 import com.openswift.keyboard.engine.UserDictionary
 import com.openswift.keyboard.layout.CustomLayoutStore
 import java.time.Instant
@@ -271,7 +270,7 @@ class DataPortability(private val context: Context) {
     private fun customThemePrefs() = SecurePreferences.open(
         context = context,
         storeName = TypedDataStores.CUSTOM_THEMES,
-        legacyPreferences = PreferenceManager.getDefaultSharedPreferences(context),
+        legacyPreferences = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE),
         migrateKey = { it.startsWith(TypedDataStores.CUSTOM_THEME_PREFIX) },
     )
 

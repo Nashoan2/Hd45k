@@ -1,7 +1,6 @@
 package com.openswift.keyboard.data
 
 import android.content.Context
-import androidx.preference.PreferenceManager
 
 /** Canonical names and reset behavior for stores containing user-entered or derived data. */
 object TypedDataStores {
@@ -28,7 +27,7 @@ object TypedDataStores {
         ) + KeyboardLanguages.all.map { userDictionary(it.code) }
         standardStores.distinct().forEach { SecurePreferences.clear(context, it) }
 
-        val legacyThemes = PreferenceManager.getDefaultSharedPreferences(context)
+        val legacyThemes = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
         SecurePreferences.clear(
             context = context,
             storeName = CUSTOM_THEMES,

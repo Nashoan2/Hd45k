@@ -1,14 +1,13 @@
 package com.openswift.keyboard.theme
 
 import android.content.Context
-import androidx.preference.PreferenceManager
 import com.openswift.keyboard.data.SecurePreferences
 import com.openswift.keyboard.data.TypedDataStores
 
 /** Per-user custom theme editor: allows color customization of any theme. */
 class ThemeEditor(ctx: Context) {
 
-    private val legacyPrefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+    private val legacyPrefs = ctx.getSharedPreferences("${ctx.packageName}_preferences", Context.MODE_PRIVATE)
     private val prefs = SecurePreferences.open(
         context = ctx,
         storeName = TypedDataStores.CUSTOM_THEMES,

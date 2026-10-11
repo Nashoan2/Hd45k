@@ -141,7 +141,6 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
-    implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("androidx.security:security-crypto:1.1.0")
     compileOnly("com.google.errorprone:error_prone_annotations:2.50.0")
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
